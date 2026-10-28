@@ -9,7 +9,7 @@ const app = await createApp(cfg).catch((e) => { console.error(`\n✖ No se pudo 
 app.server.listen(cfg.port, cfg.host, () => {
   console.log(`\n  ${cfg.appName}`);
   console.log(`  Panel:        http://localhost:${cfg.port}/admin/`);
-  console.log(`  Sede 1:       http://localhost:${cfg.port}/player/sede-1`);
+  console.log(`  Alto del Espino: http://localhost:${cfg.port}/player/alto-del-espino`);
   console.log(`  Diagnóstico:  http://localhost:${cfg.port}/diagnostico`);
   console.log(`  Datos:        ${cfg.dataDir}\n`);
   if (cfg.engineAutostart) app.start();

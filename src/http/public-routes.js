@@ -32,6 +32,12 @@ export function registerPublicRoutes(router, app) {
 
   // Página del reproductor (una por sede).
   router.get('/player/:slug', (req, res, ctx) => {
+    // Enlaces antiguos /player/sede-N: redirigen a la sede correspondiente por su número.
+    const old = /^sede-(\d)$/.exec(ctx.params.slug);
+    if (old && !db.get('SELECT id FROM sites WHERE slug = ?', ctx.params.slug)) {
+      const s = db.get('SELECT slug FROM sites WHERE id = ?', Number(old[1]));
+      if (s) { res.writeHead(302, { Location: `/player/${s.slug}` }); res.end(); return; }
+    }
     const s = siteBySlug(ctx.params.slug);
     if (!s.enabled) throw new HttpError(404, 'Esta sede está deshabilitada.');
     sendFile(req, res, path.join(cfg.root, 'public', 'player', 'player.html'), { headers: securityHeaders('player') });

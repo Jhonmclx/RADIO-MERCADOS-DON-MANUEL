@@ -142,7 +142,7 @@ test('RADIO MERCADO DON MANUEL — emisión central completa', { timeout: 15 * 6
   };
 
   await t.test('13. los cambios llegan a las cinco sedes conectadas (confirmación de versión por sede)', async () => {
-    for (let i = 1; i <= 5; i++) startSim(`sede-${i}`);
+    for (const s of ['alto-del-espino', 'gourmet', 'parque-narino', 'terminal', 'sachica']) startSim(s);
     await waitFor(async () => (await admin.get('/api/admin/sites')).data.sites.every((s) => s.connection === 'conectada'), { label: 'cinco sedes conectadas' });
     const before = (await admin.get('/api/admin/settings')).data.configVersion;
     assert.equal((await admin.put('/api/admin/settings', { songsBetweenAds: 2, adsPerBlock: 1, musicShuffle: false })).status, 200);
@@ -201,15 +201,15 @@ test('RADIO MERCADO DON MANUEL — emisión central completa', { timeout: 15 * 6
   });
 
   await t.test('14 y 15. una sede pierde conexión, las demás siguen; al volver se registra la reconexión', async () => {
-    const sim3 = sims.find((s) => s.slug === 'sede-3');
+    const sim3 = sims.find((s) => s.slug === 'parque-narino');
     sim3.paused = true;
-    await waitFor(async () => (await admin.get('/api/admin/sites')).data.sites.find((s) => s.slug === 'sede-3').connection === 'desconectada', { label: 'sede 3 desconectada' });
+    await waitFor(async () => (await admin.get('/api/admin/sites')).data.sites.find((s) => s.slug === 'parque-narino').connection === 'desconectada', { label: 'sede 3 desconectada' });
     const sites = (await admin.get('/api/admin/sites')).data.sites;
-    assert.ok(sites.filter((s) => s.slug !== 'sede-3').every((s) => s.connection === 'conectada'));
+    assert.ok(sites.filter((s) => s.slug !== 'parque-narino').every((s) => s.connection === 'conectada'));
     const segsBefore = live.segs.size; await sleep(5000);
     assert.ok(live.segs.size > segsBefore, 'la señal sigue publicándose para las demás sedes');
     sim3.paused = false;
-    const s3 = await waitFor(async () => { const s = (await admin.get('/api/admin/sites')).data.sites.find((x) => x.slug === 'sede-3'); return s.connection === 'conectada' && s.lastReconnectAt && s; }, { label: 'sede 3 reconectada' });
+    const s3 = await waitFor(async () => { const s = (await admin.get('/api/admin/sites')).data.sites.find((x) => x.slug === 'parque-narino'); return s.connection === 'conectada' && s.lastReconnectAt && s; }, { label: 'sede 3 reconectada' });
     assert.ok(s3.lastDisconnectMs >= 6000);
     assert.ok(s3.recentEvents.some((e) => e.type === 'reconexion'));
   });
@@ -250,7 +250,7 @@ test('RADIO MERCADO DON MANUEL — emisión central completa', { timeout: 15 * 6
     const pl = await (await fetch(`${srv.url}/live/index.m3u8`)).text();
     assert.match(pl, /#EXT-X-ENDLIST/);
     assert.equal((await engine()).mode, 'stopped');
-    assert.equal((await (await fetch(`${srv.url}/api/public/sites/sede-1/state`)).json()).engine.mode, 'stopped');
+    assert.equal((await (await fetch(`${srv.url}/api/public/sites/alto-del-espino/state`)).json()).engine.mode, 'stopped');
     assert.equal((await admin.post('/api/admin/engine/action', { action: 'iniciar' })).status, 200);
     await waitFor(async () => !(await (await fetch(`${srv.url}/live/index.m3u8`)).text()).includes('ENDLIST'), { label: 'señal reanudada' });
   });
@@ -288,16 +288,16 @@ test('RADIO MERCADO DON MANUEL — emisión central completa', { timeout: 15 * 6
     // Origen ajeno: rechazado.
     const evil = await fetch(`${srv.url}/api/admin/settings`, { method: 'PUT', headers: { Cookie: admin.cookie, 'X-CSRF-Token': admin.csrf, 'Content-Type': 'application/json', Origin: 'https://atacante.example' }, body: '{"songsBetweenAds":9}' });
     assert.equal(evil.status, 403);
-    const html = await (await fetch(`${srv.url}/player/sede-1`)).text();
+    const html = await (await fetch(`${srv.url}/player/alto-del-espino`)).text();
     assert.ok(!/\/api\/admin|\/admin\//.test(html), 'la página pública no enlaza al panel');
     const js = await (await fetch(`${srv.url}/static/player/player.js`)).text();
     assert.ok(!/\/api\/admin/.test(js));
     // La telemetría pública no puede cambiar ajustes, aunque lo intente.
-    await fetch(`${srv.url}/api/public/sites/sede-1/heartbeat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: 'reproduciendo', songs_between_ads: 9, engine_mode: 'stopped' }) });
+    await fetch(`${srv.url}/api/public/sites/alto-del-espino/heartbeat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: 'reproduciendo', songs_between_ads: 9, engine_mode: 'stopped' }) });
     const s = (await admin.get('/api/admin/settings')).data;
     assert.equal(s.songsBetweenAds, 2); assert.equal(s.engineMode, 'running');
     // El estado público no expone datos del anunciante.
-    const st = await (await fetch(`${srv.url}/api/public/sites/sede-1/state`)).text();
+    const st = await (await fetch(`${srv.url}/api/public/sites/alto-del-espino/state`)).text();
     assert.ok(!/advertiser|anunciante|Comercial A|Comercial B/.test(st));
     // Rutas inexistentes / recorridos de directorio.
     assert.equal((await fetch(`${srv.url}/static/../src/config.js`)).status, 404);
@@ -311,7 +311,7 @@ test('RADIO MERCADO DON MANUEL — emisión central completa', { timeout: 15 * 6
   await t.test('22. reintentar el envío de un evento no lo duplica en el historial', async () => {
     const ev = { id: 'evento-prueba-0001', type: 'desconexion', at: Date.now() - 5000, detail: { motivo: 'prueba' } };
     const bp = { id: 'respaldo-prueba-0001', adId: ad2, startedAt: Date.now() - 60_000, endedAt: Date.now() - 52_000, completed: true };
-    const send = () => fetch(`${srv.url}/api/public/sites/sede-2/heartbeat`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const send = () => fetch(`${srv.url}/api/public/sites/gourmet/heartbeat`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ state: 'reproduciendo', events: [ev], backupPlays: [bp] }) }).then((r) => r.json());
     const r1 = await send(); const r2 = await send(); await send();
     assert.equal(r1.accepted, 1); assert.equal(r2.accepted, 0);

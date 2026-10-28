@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 
 const MIGRATIONS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), 'migrations');
 
+export const SEDES = [['alto-del-espino', 'Alto del Espino'], ['gourmet', 'Gourmet'], ['parque-narino', 'Parque Nariño'], ['terminal', 'Terminal'], ['sachica', 'Sáchica']];
+
 export const DEFAULT_SETTINGS = {
   songs_between_ads: 2,
   ads_per_block: 1,
@@ -59,9 +61,9 @@ export class Database {
   /** Datos iniciales: cinco sedes, ajustes por defecto y horario 7:00–21:00 todos los días. Idempotente. */
   seed() {
     const now = Date.now();
-    for (let i = 1; i <= 5; i++) {
-      this.run('INSERT OR IGNORE INTO sites (slug, name, description, created_at) VALUES (?, ?, ?, ?)',
-        `sede-${i}`, `Sede ${i}`, null, now);
+    // Sedes iniciales (solo se crean si la tabla está vacía; después se administran desde el panel).
+    if (!this.get('SELECT COUNT(*) AS n FROM sites').n) {
+      for (const [slug, name] of SEDES) this.run('INSERT INTO sites (slug, name, description, created_at) VALUES (?, ?, ?, ?)', slug, name, null, now);
     }
     for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
       this.run('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)', k, JSON.stringify(v));

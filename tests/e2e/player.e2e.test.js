@@ -30,7 +30,7 @@ test('reproductores en navegador real: cinco sedes, sincronización medida, reco
 
   await t.test('las cinco páginas de sede reproducen la señal central con sonido', async () => {
     for (let i = 1; i <= 5; i++) {
-      const slug = `sede-${i}`;
+      const slug = ['alto-del-espino', 'gourmet', 'parque-narino', 'terminal', 'sachica'][i - 1];
       contexts[slug] = await browser.newContext({ viewport: { width: 1280, height: 720 } });
       pages[slug] = await contexts[slug].newPage();
       await pages[slug].goto(`${srv.url}/player/${slug}`);
@@ -78,46 +78,46 @@ test('reproductores en navegador real: cinco sedes, sincronización medida, reco
 
   await t.test('un televisor que entra tarde se une al punto actual (no empieza desde el principio)', async () => {
     const ctx = await browser.newContext(); const late = await ctx.newPage();
-    await late.goto(`${srv.url}/player/sede-1`);
+    await late.goto(`${srv.url}/player/alto-del-espino`);
     await waitFor(async () => (await late.evaluate(() => window.RMDM && window.RMDM.state)) === 'reproduciendo', { timeout: 60_000, label: 'tardío reproduciendo' });
     await sleep(8000);
-    const [a, b] = await Promise.all([late, pages['sede-2']].map((p) => p.evaluate(() => window.RMDM.hls.playingDate.getTime())));
+    const [a, b] = await Promise.all([late, pages['gourmet']].map((p) => p.evaluate(() => window.RMDM.hls.playingDate.getTime())));
     assert.ok(Math.abs(a - b) < 1500, `el tardío está a ${Math.abs(a - b)} ms de las demás sedes`);
     await ctx.close();
   });
 
   await t.test('14 y 15 (navegador). una sede pierde Internet, las demás siguen; al volver recupera la señal central', async () => {
-    await contexts['sede-2'].setOffline(true);
-    await waitFor(async () => ['reconectando', 'sin_senal', 'respaldo'].includes((await state('sede-2')).state), { timeout: 60_000, label: 'sede 2 detecta la pérdida' });
-    for (const slug of ['sede-1', 'sede-3', 'sede-4', 'sede-5']) assert.equal((await state(slug)).state, 'reproduciendo', slug);
+    await contexts['gourmet'].setOffline(true);
+    await waitFor(async () => ['reconectando', 'sin_senal', 'respaldo'].includes((await state('gourmet')).state), { timeout: 60_000, label: 'sede 2 detecta la pérdida' });
+    for (const slug of ['alto-del-espino', 'parque-narino', 'terminal', 'sachica']) assert.equal((await state(slug)).state, 'reproduciendo', slug);
     await sleep(4000);
-    await contexts['sede-2'].setOffline(false);
-    await waitFor(async () => (await state('sede-2')).state === 'reproduciendo', { timeout: 120_000, label: 'sede 2 recupera la señal' });
-    const ev = await waitFor(async () => { const s = (await admin.get('/api/admin/sites')).data.sites.find((x) => x.slug === 'sede-2'); return s.recentEvents.some((e) => e.type === 'reconexion') && s; }, { timeout: 30_000, label: 'evento de reconexión' });
+    await contexts['gourmet'].setOffline(false);
+    await waitFor(async () => (await state('gourmet')).state === 'reproduciendo', { timeout: 120_000, label: 'sede 2 recupera la señal' });
+    const ev = await waitFor(async () => { const s = (await admin.get('/api/admin/sites')).data.sites.find((x) => x.slug === 'gourmet'); return s.recentEvents.some((e) => e.type === 'reconexion') && s; }, { timeout: 30_000, label: 'evento de reconexión' });
     assert.ok(ev.recentEvents.some((e) => e.type === 'desconexion'));
   });
 
   await t.test('respaldo local: descarga autorizada, reproducción sin Internet marcada como respaldo y regreso controlado', async () => {
-    const st = await waitFor(async () => { const s = await state('sede-4'); return /^listo/.test(s.backup) && s; }, { timeout: 90_000, label: 'respaldo descargado' });
+    const st = await waitFor(async () => { const s = await state('terminal'); return /^listo/.test(s.backup) && s; }, { timeout: 90_000, label: 'respaldo descargado' });
     t.diagnostic(`Estado del respaldo en sede-4: ${st.backup}`);
-    await contexts['sede-4'].setOffline(true);
-    await waitFor(async () => (await state('sede-4')).state === 'respaldo', { timeout: 60_000, label: 'sede 4 en respaldo local' });
-    const playing = await pages['sede-4'].evaluate(() => { const a = document.getElementById('baudio'); return !a.paused && a.currentTime > 0 && a.src.startsWith('blob:'); });
+    await contexts['terminal'].setOffline(true);
+    await waitFor(async () => (await state('terminal')).state === 'respaldo', { timeout: 60_000, label: 'sede 4 en respaldo local' });
+    const playing = await pages['terminal'].evaluate(() => { const a = document.getElementById('baudio'); return !a.paused && a.currentTime > 0 && a.src.startsWith('blob:'); });
     await sleep(3000);
-    const playing2 = await pages['sede-4'].evaluate(() => { const a = document.getElementById('baudio'); const v = document.getElementById('bvideo'); return { a: !a.paused && a.src.startsWith('blob:'), v: !v.paused }; });
+    const playing2 = await pages['terminal'].evaluate(() => { const a = document.getElementById('baudio'); const v = document.getElementById('bvideo'); return { a: !a.paused && a.src.startsWith('blob:'), v: !v.paused }; });
     assert.ok(playing || playing2.a || playing2.v, 'el respaldo reproduce contenido descargado');
-    await contexts['sede-4'].setOffline(false);
-    await waitFor(async () => (await state('sede-4')).state === 'reproduciendo', { timeout: 120_000, label: 'regreso a la señal central' });
-    const s4 = await waitFor(async () => { const s = (await admin.get('/api/admin/sites')).data.sites.find((x) => x.slug === 'sede-4'); return s.recentEvents.some((e) => e.type === 'respaldo_fin') && s; }, { timeout: 30_000, label: 'eventos de respaldo' });
+    await contexts['terminal'].setOffline(false);
+    await waitFor(async () => (await state('terminal')).state === 'reproduciendo', { timeout: 120_000, label: 'regreso a la señal central' });
+    const s4 = await waitFor(async () => { const s = (await admin.get('/api/admin/sites')).data.sites.find((x) => x.slug === 'terminal'); return s.recentEvents.some((e) => e.type === 'respaldo_fin') && s; }, { timeout: 30_000, label: 'eventos de respaldo' });
     assert.ok(s4.recentEvents.some((e) => e.type === 'respaldo_inicio'));
   });
 
   await t.test('señal detenida: las sedes muestran la pantalla de espera y vuelven solas al reiniciar', async () => {
     await admin.post('/api/admin/engine/action', { action: 'detener', confirm: true });
-    await waitFor(async () => (await state('sede-5')).state === 'en_espera', { timeout: 60_000, label: 'pantalla de espera' });
-    assert.ok(await pages['sede-5'].evaluate(() => !document.getElementById('wait').classList.contains('hidden')));
+    await waitFor(async () => (await state('sachica')).state === 'en_espera', { timeout: 60_000, label: 'pantalla de espera' });
+    assert.ok(await pages['sachica'].evaluate(() => !document.getElementById('wait').classList.contains('hidden')));
     await admin.post('/api/admin/engine/action', { action: 'iniciar' });
-    await waitFor(async () => (await state('sede-5')).state === 'reproduciendo', { timeout: 90_000, label: 'vuelve a reproducir' });
+    await waitFor(async () => (await state('sachica')).state === 'reproduciendo', { timeout: 90_000, label: 'vuelve a reproducir' });
   });
 
   await t.test('autoplay bloqueado: se muestra la pantalla de activación y basta con pulsar OK', async () => {
@@ -136,7 +136,7 @@ test('reproductores en navegador real: cinco sedes, sincronización medida, reco
           return orig.call(this);
         };
       });
-      await p.goto(`${srv.url}/player/sede-3`);
+      await p.goto(`${srv.url}/player/parque-narino`);
       let last = null;
       try {
         await waitFor(async () => { last = await p.evaluate(() => window.RMDM && { s: window.RMDM.state, m: document.getElementById('live').muted, e: window.RMDM.lastError }); return last && last.s === 'bloqueado_autoplay'; }, { timeout: 60_000, label: 'autoplay bloqueado' });
@@ -150,7 +150,7 @@ test('reproductores en navegador real: cinco sedes, sincronización medida, reco
 
   await t.test('página de diagnóstico del televisor', async () => {
     const p = await (await browser.newContext()).newPage();
-    await p.goto(`${srv.url}/diagnostico?sede=sede-1`);
+    await p.goto(`${srv.url}/diagnostico?sede=alto-del-espino`);
     await p.click('#run');
     await waitFor(async () => !(await p.$eval('#send', (b) => b.disabled)), { timeout: 60_000, label: 'diagnóstico completo' });
     const summary = await p.$eval('#summary', (e) => e.textContent);
