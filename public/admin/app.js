@@ -348,6 +348,7 @@ function uploadFile(url, file, onProgress) {
     xhr.open('POST', url);
     xhr.setRequestHeader('X-CSRF-Token', S.csrf);
     xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+    if (file.type) xhr.setRequestHeader('X-File-Type', file.type);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
     xhr.onload = () => {
       let data = {}; try { data = JSON.parse(xhr.responseText); } catch { /* ignore */ }
@@ -383,7 +384,7 @@ RENDER.comerciales = async (el) => {
   el.innerHTML = `<div class="card"><h2>Subir comercial</h2>
     <p class="small muted">Recomendado: MP4 con video H.264 y audio AAC. También se aceptan MOV, WEBM, MKV, AVI. El sistema valida el archivo, lo convierte al formato común de la señal, calcula su huella SHA-256 y solo lo marca como disponible cuando todo termina bien.</p>
     <form id="upf" class="form-grid">
-      <label class="f">Archivo de video<input type="file" id="upfile" accept="video/*,.mp4,.mov,.webm,.mkv,.avi" required></label>
+      <label class="f">Archivo de video<input type="file" id="upfile" accept="video/*" required></label>
       <label class="f">Nombre del comercial<input type="text" id="upname" maxlength="120" required></label>
       <label class="f">Anunciante<select id="upadv">${advOptions(null)}</select></label>
       <label class="f">Posición en la lista<select id="uppos"><option value="final">Al final</option><option value="inicio">Al inicio</option></select></label>
@@ -560,25 +561,45 @@ function advForm(a, done) {
 // ------------------------------------------------------------------ MÚSICA
 RENDER.musica = async (el) => {
   el.innerHTML = `<div class="card"><h2>Subir canciones</h2>
-    <p class="small muted">Archivos MP3 (también M4A, AAC, WAV, OGG, FLAC). Puede seleccionar varios a la vez. El volumen se normaliza para que todas las canciones y los comerciales suenen parejo.
-    Use solo música con los derechos de difusión correspondientes.</p>
-    <div class="btn-row"><input type="file" id="mfiles" accept="audio/*,.mp3,.m4a,.aac,.wav,.ogg,.flac" multiple><button class="btn primary" id="mup">Subir seleccionadas</button></div>
-    <div id="mstat" class="small" style="margin-top:8px"></div></div>
+    <p class="small muted">MP3 y casi cualquier formato de audio (M4A, AAC, WAV, OGG, OPUS, FLAC…). Puede elegir varios a la vez; la subida empieza sola al elegirlos.
+    El volumen se normaliza para que canciones y comerciales suenen parejo. Use solo música con los derechos de difusión correspondientes.</p>
+    <div class="btn-row">
+      <label class="btn primary">🎵 Elegir canciones<input type="file" id="mfiles" multiple hidden></label>
+      <label class="btn">📁 Elegir una carpeta completa<input type="file" id="mdir" webkitdirectory directory multiple hidden></label>
+    </div>
+    <p class="small muted" style="margin-top:8px">En el celular: toque «Elegir canciones», luego el menú ☰ o «Examinar» para abrir sus carpetas (Descargas, Música, tarjeta SD…). Mantenga presionado un archivo para seleccionar varios.</p>
+    <div id="mstat" class="small" style="margin-top:8px"></div>
+    <div class="upload-progress hidden" id="mbarw" style="margin-top:6px"><div id="mbar"></div></div></div>
     <div class="card section-gap"><h2>Lista musical <span class="small muted">Arrastre ⠿ para ordenar · «Respaldo» = se descarga en los televisores para sonar sin Internet</span></h2><div id="mlist"></div></div>`;
-  $('#mup', el).addEventListener('click', async () => {
-    const files = [...$('#mfiles', el).files];
-    if (!files.length) return toast('Seleccione uno o más archivos.', true);
-    let ok = 0;
+  const AUDIO_EXT = /\.(mp3|m4a|aac|wav|ogg|oga|opus|flac|wma|amr|3gp|mp4|webm|weba|aif|aiff|m4b)$/i;
+  const isAudio = (f) => (f.type && (f.type.startsWith('audio/') || f.type === 'video/mp4')) || AUDIO_EXT.test(f.name) || (!f.type && !/\.[a-z0-9]{1,5}$/i.test(f.name));
+  let busy = false;
+  const upload = async (all) => {
+    if (busy) return toast('Espere a que termine la subida en curso.', true);
+    const files = all.filter(isAudio);
+    const skipped = all.length - files.length;
+    if (!files.length) return toast(all.length ? 'Ninguno de los archivos elegidos es de audio.' : 'No se eligió ningún archivo.', true);
+    busy = true; let ok = 0;
+    $('#mbarw', el).classList.remove('hidden');
     for (const [i, f] of files.entries()) {
+      if (f.size > 60 * 1048576) { toast(`${f.name}: supera 60 MB.`, true); continue; }
       try {
-        await uploadFile(`/api/admin/music/upload?${new URLSearchParams({ filename: f.name })}`, f,
-          (p) => { $('#mstat', el).textContent = `Subiendo ${i + 1} de ${files.length}: ${f.name} (${(p * 100).toFixed(0)}%)`; });
+        await uploadFile(`/api/admin/music/upload?${new URLSearchParams({ filename: f.name || 'cancion' })}`, f, (p) => {
+          $('#mstat', el).textContent = `Subiendo ${i + 1} de ${files.length}: ${f.name} (${(p * 100).toFixed(0)}%)`;
+          $('#mbar', el).style.width = `${(((i + p) / files.length) * 100).toFixed(0)}%`;
+        });
         ok++;
       } catch (e) { toast(`${f.name}: ${e.message}`, true); }
     }
-    $('#mstat', el).textContent = `${ok} de ${files.length} archivo(s) recibidos. Se están procesando.`;
-    $('#mfiles', el).value = ''; list();
-  });
+    busy = false;
+    $('#mbarw', el).classList.add('hidden');
+    $('#mstat', el).textContent = `${ok} de ${files.length} canción(es) recibidas${skipped ? ` (${skipped} archivo(s) que no eran audio se omitieron)` : ''}. Se están procesando: aparecerán como «Listo» en la lista.`;
+    if (ok) toast(`${ok} canción(es) subidas.`);
+    list();
+  };
+  for (const id of ['#mfiles', '#mdir']) {
+    $(id, el).addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; upload(fs); });
+  }
   const list = async () => {
     const d = await api('GET', '/api/admin/music');
     const total = d.songs.filter((s) => s.enabled && s.status === 'listo').reduce((a, s) => a + (s.durationMs || 0), 0);

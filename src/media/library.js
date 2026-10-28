@@ -6,9 +6,16 @@ import { EventEmitter } from 'node:events';
 import { probe, normalizeAd, makeBackupVideo, makeThumbnail, normalizeSong, sha256File } from './ffmpeg.js';
 
 const AD_FORMATS = ['mov', 'mp4', 'm4a', '3gp', 'matroska', 'webm', 'avi', 'mpegts', 'mpeg', 'flv'];
-const SONG_FORMATS = ['mp3', 'mov', 'mp4', 'm4a', 'aac', 'wav', 'ogg', 'flac', 'matroska', 'webm'];
-const AD_EXT = ['.mp4', '.m4v', '.mov', '.webm', '.mkv', '.avi', '.ts', '.mpg', '.mpeg'];
-const SONG_EXT = ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.flac'];
+const SONG_FORMATS = ['mp3', 'mov', 'mp4', 'm4a', 'aac', 'wav', 'ogg', 'flac', 'matroska', 'webm', 'asf', 'amr', '3gp', 'aiff', 'adts'];
+const AD_EXT = ['.mp4', '.m4v', '.mov', '.webm', '.mkv', '.avi', '.ts', '.mpg', '.mpeg', '.3gp'];
+const SONG_EXT = ['.mp3', '.m4a', '.aac', '.wav', '.ogg', '.oga', '.opus', '.flac', '.wma', '.amr', '.3gp', '.mp4', '.webm', '.weba', '.aif', '.aiff', '.m4b'];
+// Tipos MIME que envía el navegador (los celulares a veces entregan archivos sin extensión en el nombre).
+const MIME_EXT = {
+  'audio/mpeg': '.mp3', 'audio/mp3': '.mp3', 'audio/mp4': '.m4a', 'audio/x-m4a': '.m4a', 'audio/aac': '.aac', 'audio/wav': '.wav',
+  'audio/x-wav': '.wav', 'audio/ogg': '.ogg', 'audio/opus': '.opus', 'audio/flac': '.flac', 'audio/x-flac': '.flac', 'audio/webm': '.webm',
+  'audio/amr': '.amr', 'audio/3gpp': '.3gp', 'audio/x-ms-wma': '.wma', 'audio/aiff': '.aiff', 'audio/x-aiff': '.aiff',
+  'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/webm': '.webm', 'video/x-matroska': '.mkv', 'video/3gpp': '.3gp', 'video/x-msvideo': '.avi', 'video/mpeg': '.mpg',
+};
 
 export class UploadError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -42,12 +49,18 @@ export class MediaLibrary extends EventEmitter {
    * Guarda el cuerpo de la petición en disco limitando el tamaño y calculando la huella SHA-256 al vuelo.
    * El archivo se guarda con un nombre generado por el servidor (nunca con el nombre del usuario).
    */
-  async receive(req, { kind, originalName }) {
+  async receive(req, { kind, originalName, mimeType }) {
     const maxBytes = (kind === 'ad' ? this.cfg.uploads.maxAdMB : this.cfg.uploads.maxMusicMB) * 1024 * 1024;
-    const ext = path.extname(String(originalName || '')).toLowerCase();
     const allowed = kind === 'ad' ? AD_EXT : SONG_EXT;
+    let ext = path.extname(String(originalName || '')).toLowerCase();
+    if (ext && !/^\.[a-z0-9]{1,5}$/.test(ext)) ext = '';
     if (!allowed.includes(ext)) {
-      throw new UploadError(`Formato de archivo no permitido (${ext || 'sin extensión'}). Permitidos: ${allowed.join(', ')}.`, 415);
+      const mime = String(mimeType || '').toLowerCase().split(';')[0].trim();
+      const fromMime = MIME_EXT[mime];
+      const mediaMime = kind === 'ad' ? mime.startsWith('video/') : (mime.startsWith('audio/') || mime.startsWith('video/'));
+      if (fromMime && allowed.includes(fromMime)) ext = fromMime;
+      else if (!ext || mediaMime) ext = '.bin'; // sin extensión reconocible: FFprobe decide si es audio/video válido
+      else throw new UploadError(`Formato de archivo no permitido (${ext}). Permitidos: ${allowed.join(', ')}.`, 415);
     }
     const declared = Number(req.headers['content-length'] || 0);
     if (declared && declared > maxBytes) throw new UploadError(`El archivo supera el tamaño máximo de ${Math.round(maxBytes / 1048576)} MB.`, 413);

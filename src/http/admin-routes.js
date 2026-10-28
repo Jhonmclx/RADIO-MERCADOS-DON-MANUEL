@@ -270,7 +270,7 @@ export function registerAdminRoutes(router, app) {
     if (advertiserId && !db.get('SELECT id FROM advertisers WHERE id = ?', advertiserId)) throw new HttpError(400, 'El anunciante no existe.');
     const filename = str(q.get('filename'), { name: 'archivo', max: 255, required: true });
     let received;
-    try { received = await library.receive(req, { kind: 'ad', originalName: filename }); }
+    try { received = await library.receive(req, { kind: 'ad', originalName: filename, mimeType: req.headers['x-file-type'] }); }
     catch (e) { if (e instanceof UploadError) throw new HttpError(e.status, e.message); throw e; }
     const id = library.createAd(received, { name, advertiserId, originalName: filename });
     const activate = bool(q.get('activate'));
@@ -385,10 +385,10 @@ export function registerAdminRoutes(router, app) {
   router.post('/api/admin/music/upload', mutate, async (req, res, ctx) => {
     const q = ctx.query;
     const filename = str(q.get('filename'), { name: 'archivo', max: 255, required: true });
-    const title = str(q.get('title'), { name: 'título', max: 160 }) || filename.replace(/\.[^.]+$/, '');
+    const title = str(q.get('title'), { name: 'título', max: 160 }) || filename.replace(/\.[a-z0-9]{1,5}$/i, '').replace(/[_]+/g, ' ').trim() || 'Canción sin título';
     const artist = str(q.get('artist'), { name: 'artista', max: 160 });
     let received;
-    try { received = await library.receive(req, { kind: 'song', originalName: filename }); }
+    try { received = await library.receive(req, { kind: 'song', originalName: filename, mimeType: req.headers['x-file-type'] }); }
     catch (e) { if (e instanceof UploadError) throw new HttpError(e.status, e.message); throw e; }
     const id = library.createSong(received, { title, artist, originalName: filename });
     db.audit(ctx.user, 'subir_cancion', 'song', id, { title, filename, sha256: received.sha256 }, ctx.ip);
