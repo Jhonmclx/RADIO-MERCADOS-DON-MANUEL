@@ -12,6 +12,7 @@ import { registerAdminRoutes } from './http/admin-routes.js';
 import { registerPublicRoutes } from './http/public-routes.js';
 import { runProcess } from './media/ffmpeg.js';
 import { seedDemo } from './demo-seed.js';
+import { Persist } from './persist.js';
 
 export async function createApp(cfg, { logToConsole = true } = {}) {
   for (const d of [cfg.dataDir, cfg.mediaDir, cfg.liveDir, cfg.renderDir, cfg.tmpDir]) fs.mkdirSync(d, { recursive: true });
@@ -19,6 +20,12 @@ export async function createApp(cfg, { logToConsole = true } = {}) {
   try { await runProcess(cfg.ffmpeg, ['-hide_banner', '-version'], { timeoutMs: 15_000 }); await runProcess(cfg.ffprobe, ['-hide_banner', '-version'], { timeoutMs: 15_000 }); }
   catch (e) { throw new Error(`No se encontró FFmpeg/FFprobe (${cfg.ffmpeg}). Instálelo o configure FFMPEG_PATH y FFPROBE_PATH. Detalle: ${e.message}`); }
 
+  // Guardado permanente (Supabase): se recupera la base de datos ANTES de abrirla.
+  const persist = new Persist({ cfg, log: (l, m, d) => logToConsole && console.log(`[${new Date().toISOString()}] ${l.toUpperCase()} ${m}${d ? ' ' + JSON.stringify(d) : ''}`) });
+  if (persist.enabled) {
+    try { await persist.restoreDatabase(); }
+    catch (e) { console.error(`Almacenamiento permanente no disponible al iniciar: ${e.message}`); persist.status.lastError = e.message; }
+  }
   const db = openDatabase(cfg.dbFile);
   const log = (level, message, detail) => {
     db.engineLog(level, message, detail);
@@ -37,19 +44,28 @@ export async function createApp(cfg, { logToConsole = true } = {}) {
     }
   }
 
+  persist.log = log;
+  if (persist.enabled) { try { await persist.restoreMedia(db); } catch (e) { log('warn', 'No se pudieron recuperar los archivos guardados', { error: e.message }); } }
   const library = new MediaLibrary({ cfg, db, log });
   const engine = new Engine({ cfg, db, library, log });
   const reports = new Reports({ db, cfg, engine });
   const sessions = new Sessions({ db, cfg });
   library.on('changed', (e) => {
     if (e.status === 'listo') { db.bumpConfigVersion(); engine.onConfigChanged(`${e.kind === 'ad' ? 'comercial' : 'canción'} #${e.id} disponible`); }
+    if (persist.enabled) persist.saveMedia(e.kind, e.id, db).then(() => persist.snapshot(db)).catch(() => {});
   });
+  // Cada acción del administrador deja una copia de la base de datos a los pocos segundos.
+  let snapTimer = null;
+  const origAudit = db.audit.bind(db);
+  db.audit = (...a) => { origAudit(...a); if (persist.enabled) { clearTimeout(snapTimer); snapTimer = setTimeout(() => persist.snapshot(db), 4000); } };
   await engine.init();
   library.resumePending();
   if (process.env.DEMO_SEED === 'true') seedDemo({ cfg, db, library, log });
 
   const router = new Router();
-  const app = { cfg, db, engine, library, reports, sessions, log };
+  const app = { cfg, db, engine, library, reports, sessions, log, persist };
+  const snapInterval = persist.enabled ? setInterval(() => persist.snapshot(db), 3 * 60_000) : null;
+  if (persist.enabled) setTimeout(() => persist.snapshot(db), 15_000);
   registerAdminRoutes(router, app);
   registerPublicRoutes(router, app);
 
@@ -121,8 +137,10 @@ export async function createApp(cfg, { logToConsole = true } = {}) {
 
   async function close() {
     clearInterval(maintenance);
+    clearInterval(snapInterval); clearTimeout(snapTimer);
     await engine.stopLoop();
     engine.saveState();
+    if (persist.enabled) await persist.snapshot(db, { force: true });
     const closed = new Promise((r) => server.close(() => r()));
     server.closeAllConnections?.();
     await closed;

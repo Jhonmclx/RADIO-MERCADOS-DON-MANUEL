@@ -154,6 +154,9 @@ export function registerAdminRoutes(router, app) {
       if (s.enabled && s.connection === 'conectada' && s.playerState === 'bloqueado_autoplay') alerts.push({ level: 'warn', text: `${s.name}: el televisor bloqueó el sonido automático; alguien debe pulsar OK en el control.` });
       if (s.enabled && s.connection === 'conectada' && !s.configUpToDate) alerts.push({ level: 'info', text: `${s.name} aún no confirma la última versión de configuración.` });
     }
+    const ps = app.persist?.status;
+    if (ps && !ps.enabled && process.env.RENDER) alerts.push({ level: 'warn', text: 'Sin almacenamiento permanente: la música y los comerciales se borran si el servidor se reinicia.' });
+    if (ps?.enabled && ps.lastError) alerts.push({ level: 'warn', text: `Almacenamiento permanente: ${ps.lastError}` });
     const songs = db.get("SELECT COUNT(*) AS n FROM songs WHERE status = 'listo' AND enabled = 1 AND archived = 0").n;
     const ads = engine.eligibleAds(Date.now()).length;
     if (!songs) alerts.push({ level: 'info', text: 'No hay canciones habilitadas: suba archivos MP3 en la sección Música.' });
@@ -164,6 +167,7 @@ export function registerAdminRoutes(router, app) {
       UNION ALL SELECT s.name AS origen, e.at, e.type AS tipo, COALESCE(e.detail, '') AS texto FROM site_events e JOIN sites s ON s.id = e.site_id
       ORDER BY at DESC LIMIT 15`);
     json(res, 200, {
+      storage: app.persist?.status || null,
       engine: st, sites, alerts, inHours: isWithinHours(Date.now(), hours, tz),
       counts: { songs, adsInRotation: ads },
       sync: { measuredSites: delays.length, spreadMs: delays.length > 1 ? Math.max(...delays) - Math.min(...delays) : null, targetDelayMs: cfg.hls.targetDelayMs },
@@ -366,6 +370,7 @@ export function registerAdminRoutes(router, app) {
     if (a.status === 'procesando') throw new HttpError(409, 'Espere a que termine la validación antes de borrarlo.');
     db.run('DELETE FROM ads WHERE id = ?', id);
     fs.rmSync(library.adDir(id), { recursive: true, force: true });
+    app.persist?.enabled && app.persist.remove(['normalized.mp4', 'thumb.jpg', 'backup.mp4'].map((n) => `media/ads/${id}/${n}`));
     changed(ctx, 'borrar_comercial_sin_historial', 'ad', id, { name: a.name });
     json(res, 200, { ok: true });
   });
