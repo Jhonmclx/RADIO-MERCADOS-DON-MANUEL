@@ -29,6 +29,8 @@ export class Persist {
     if (r.ok) { this.log('info', `Almacenamiento permanente: carpeta "${this.bucket}" creada en Supabase.`); return; }
     const t = await r.text();
     if (r.status === 409 || /already exists|Duplicate/i.test(t)) return;
+    // Con una clave sin permiso para crear carpetas (clave pública + reglas de acceso), la carpeta ya debe existir.
+    if (r.status === 401 || r.status === 403 || /row-level security|Unauthorized/i.test(t)) return;
     throw new Error(`No se pudo preparar el almacenamiento (${r.status}): ${t.slice(0, 200)}`);
   }
 
