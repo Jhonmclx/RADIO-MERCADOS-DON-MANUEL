@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#0e5a32">
   <title>RADIO MERCADO DON MANUEL</title>
   <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/assets/fonts/poppins.css">
   <link rel="stylesheet" href="/static/player/player.css">
 </head>
 <body>
@@ -20,9 +21,10 @@
 
   <!-- Pantalla de espera -->
   <div id="wait" class="screen">
+    <video class="wait-bg" autoplay muted loop playsinline webkit-playsinline poster="/static/assets/fondo.jpg"><source src="/static/assets/fondo.mp4" type="video/mp4"></video>
     <div class="wait-box">
-      <img src="/static/assets/logo.svg" alt="" class="wait-logo">
-      <div class="wait-name">RADIO MERCADO<br><span>DON MANUEL</span></div>
+      <div class="wait-logo"><img src="/static/assets/logo-don-manuel.png" alt="Mercados Don Manuel"></div>
+      <div class="wait-name">RADIO MERCADO</div>
       <div id="waitMsg" class="wait-msg">Conectando con la señal…</div>
       <div id="waitSub" class="wait-sub"></div>
       <div id="clock" class="wait-clock"></div>

@@ -1,14 +1,17 @@
 /* Reproductor para televisores — elementos grandes, sin controles innecesarios */
-html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; font-family: "Poppins", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
 video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
 .hidden { display: none !important; }
 #backup { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; }
 .screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: -webkit-box; display: -webkit-flex; display: flex;
   -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: center; -webkit-justify-content: center; justify-content: center; }
-#wait { background: #0e5a32; background: radial-gradient(circle at 25% 25%, #137a45, #0b4a29 70%); color: #fff8e7; text-align: center; }
-.wait-logo { width: 14vh; height: 14vh; }
-.wait-name { font-weight: 800; font-size: 6vh; letter-spacing: .06em; line-height: 1.15; margin: 2.5vh 0; }
-.wait-name span { color: #f4b41a; }
+#wait { background: #07120c url(/static/assets/fondo.jpg) center/cover; color: #fff8e7; text-align: center; overflow: hidden; }
+.wait-bg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(2px); }
+#wait:after { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(5, 12, 8, .6); }
+.wait-box { position: relative; z-index: 1; background: rgba(10, 22, 15, .55); border: 1px solid rgba(255, 255, 255, .15); border-radius: 4vh; padding: 5vh 7vh; }
+.wait-logo { display: inline-block; background: #fbf7ec; border-radius: 2vh; padding: 1.4vh 2vh; box-shadow: 0 1vh 4vh rgba(0, 0, 0, .5); }
+.wait-logo img { height: 14vh; display: block; }
+.wait-name { font-weight: 800; font-size: 4.5vh; letter-spacing: .3em; margin: 3vh 0 2vh; color: #f7d117; }
 .wait-msg { font-size: 3.4vh; font-weight: 600; }
 .wait-sub { font-size: 2.4vh; opacity: .8; margin-top: 1vh; min-height: 3vh; }
 .wait-clock { font-size: 3vh; margin-top: 4vh; opacity: .75; }

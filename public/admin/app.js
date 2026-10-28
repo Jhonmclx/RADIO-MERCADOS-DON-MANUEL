@@ -121,9 +121,11 @@ const PAGES = [['inicio', 'Inicio'], ['emision', 'Emisión y controles'], ['sede
 // ------------------------------------------------------------------ sesión
 function showLogin(message) {
   clearTimers();
+  document.getElementById('bg')?.classList.add('light');
   S.user = null;
   $('#app').innerHTML = `<div class="login"><form class="card" id="login" autocomplete="on">
-    <div class="brand"><img src="/static/assets/logo.svg" alt=""><b>RADIO MERCADO<br><span>DON MANUEL</span></b></div>
+    <div class="logo-chip"><img src="/static/assets/logo-don-manuel.png" alt="Mercados Don Manuel"></div>
+    <div class="onair-tag"><span class="eq"><i></i><i></i><i></i><i></i><i></i></span><b style="letter-spacing:.18em;color:var(--ambar)">RADIO MERCADO</b></div>
     <h1>Panel administrativo</h1>
     <p class="muted small">Acceso privado. Los enlaces de las sedes no dan acceso a este panel.</p>
     ${message ? `<div class="alert warn">${esc(message)}</div>` : ''}
@@ -146,8 +148,9 @@ async function boot() {
     const me = await api('GET', '/api/auth/me');
     S.user = me.user; S.csrf = me.csrf; S.tz = me.timezone || S.tz;
   } catch (e) { if (e.status !== 401) showLogin(e.message); else showLogin(); return; }
+  document.getElementById('bg')?.classList.remove('light');
   $('#app').innerHTML = `<div class="layout">
-    <aside class="sidebar"><div class="brand"><img src="/static/assets/logo.svg" alt=""><b>RADIO MERCADO<br><span>DON MANUEL</span></b></div>
+    <aside class="sidebar"><div class="brand"><div class="logo-chip"><img src="/static/assets/logo-don-manuel.png" alt="Mercados Don Manuel"></div><b>RADIO MERCADO</b></div>
       <nav class="nav">${PAGES.map(([k, t]) => `<a href="#/${k}" data-page="${k}">${icon(k)}<span>${t}</span></a>`).join('')}</nav>
       <div class="foot">Usuario: ${esc(S.user.username)}<br>Zona horaria: ${esc(S.tz)}</div></aside>
     <main class="main"><div class="topbar"><h1 id="ptitle"></h1><div class="right" id="tstatus"></div></div><div id="page"></div></main></div>`;
@@ -176,6 +179,7 @@ function route() {
   $$('.nav a').forEach((a) => { a.classList.toggle('active', a.dataset.page === S.page); if (a.dataset.page === S.page) { const nav = a.parentElement; nav.scrollLeft = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2; } });
   $('#ptitle').textContent = def[1];
   const el = $('#page');
+  const main = document.querySelector('.main'); if (main) { main.style.animation = 'none'; void main.offsetWidth; main.style.animation = ''; }
   el.innerHTML = '<p class="muted">Cargando…</p>';
   (RENDER[S.page] || RENDER.inicio)(el).catch((e) => { el.innerHTML = `<div class="alert error">${esc(e.message)}</div>`; });
 }
@@ -187,18 +191,21 @@ function onAirCard(st) {
   if (!on) return '<div class="card onair"><h2>Al aire</h2><p class="muted">Preparando el primer elemento…</p></div>';
   const pct = on.startedAt && on.durationMs ? Math.min(100, Math.max(0, ((Date.now() - on.startedAt) / on.durationMs) * 100)) : 0;
   const nx = st.next;
-  return `<div class="card onair"><h2>Al aire ahora ${chip(['En vivo', 'live'])}</h2>
-    <div class="muted small">${esc(LABEL.kind[on.kind])}${on.kind === 'song' && on.loopAdId ? ' · video del comercial en ciclo silencioso' : ''}</div>
+  const ico = { song: '🎵', ad: '📣', slate: '⏸️' }[on.kind] || '📻';
+  const dots = Array.from({ length: Math.min(st.songsBetweenAds || 0, 10) }, (_, i) => `<span class="${i < st.songsSinceAd ? 'on' : ''}"></span>`).join('');
+  return `<div class="card onair"><h2><span><span class="eq${on.kind === 'slate' ? ' off' : ''}"><i></i><i></i><i></i><i></i><i></i></span>Al aire ahora</span> ${chip(['En vivo', 'live'])}</h2>
+    <div class="muted small">${ico} ${esc(LABEL.kind[on.kind])}${on.kind === 'song' && on.loopAdId ? ' · video del comercial en ciclo silencioso' : ''}</div>
     <div class="title">${esc(on.title)}</div>
     <div class="small muted">Inició ${fmtTime(on.startedAt)} · termina ${fmtTime(on.endsAt)} · duración ${fmtDur(on.durationMs)}</div>
     <div class="progress"><div style="width:${pct.toFixed(1)}%"></div></div>
     <p class="small" style="margin-top:12px"><b>Siguiente:</b> ${nx ? `${esc(LABEL.kind[nx.kind])} · ${esc(nx.title)} ${nx.ready ? '' : '<span class="chip info">preparando</span>'}` : '<span class="muted">por decidir</span>'}</p>
+    <div class="dots" title="Canciones antes del próximo comercial">${dots}</div>
     <p class="small muted">Canciones desde el último comercial: <b>${st.songsSinceAd}</b> de ${st.songsBetweenAds}
       ${st.musicPaused ? ' · <span class="chip warn">música en pausa</span>' : ''}${st.adsPaused ? ' · <span class="chip warn">publicidad en pausa</span>' : ''}</p></div>`;
 }
 
 function siteMini(s) {
-  return `<div class="card site-card"><div class="name">${esc(s.name)}</div>
+  return `<div class="card site-card"><div class="name"><span class="tv">📺</span> ${esc(s.name)}</div>
     <div>${chip(LABEL.connection[s.connection])}</div>
     <div class="small">${chip(LABEL.player[s.playerState] || LABEL.player.desconocido)}</div>
     <div class="small muted">Último contacto: ${fmtAgo(s.lastSeenAt)}</div>
@@ -210,8 +217,15 @@ const RENDER = {};
 RENDER.inicio = async (el) => {
   const draw = async () => {
     const d = await api('GET', '/api/admin/dashboard');
+    const conn = d.sites.filter((s) => s.connection === 'conectada').length;
     el.innerHTML = `
       ${d.alerts.map((a) => `<div class="alert ${a.level === 'error' ? 'error' : a.level}">${esc(a.text)}</div>`).join('')}
+      <div class="grid g4" style="margin-bottom:18px">
+        <div class="card stat s-rojo"><span class="ico">📡</span><div class="lbl">Señal central</div><div class="num">${d.engine.mode === 'running' ? 'EN VIVO' : 'DETENIDA'}</div></div>
+        <div class="card stat s-verde"><span class="ico">📺</span><div class="lbl">Sedes conectadas</div><div class="num">${conn} / ${d.sites.filter((s) => s.enabled).length}</div></div>
+        <div class="card stat s-ambar"><span class="ico">🎵</span><div class="lbl">Canciones</div><div class="num">${d.counts.songs}</div></div>
+        <div class="card stat s-azul"><span class="ico">📣</span><div class="lbl">Comerciales en rotación</div><div class="num">${d.counts.adsInRotation}</div></div>
+      </div>
       <div class="grid g2">
         ${onAirCard(d.engine)}
         <div class="card"><h2>Estado de la emisora</h2>
