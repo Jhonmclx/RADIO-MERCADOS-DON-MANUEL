@@ -130,18 +130,44 @@ export function registerPublicRoutes(router, app) {
 
   router.get('/api/public/sites/:slug/backup-manifest', (req, res, ctx) => {
     siteBySlug(ctx.params.slug);
-    const ads = backupAds().slice(0, 6).map((a) => {
-      const r = db.get('SELECT backup_sha256, duration_ms FROM ads WHERE id = ?', a.id);
-      return { id: a.id, url: `/media/backup/ad/${a.id}/${r.backup_sha256.slice(0, 16)}.mp4`, durationMs: r.duration_ms, sha256: r.backup_sha256 };
-    });
-    const songs = db.all("SELECT id, normalized_sha256, duration_ms, size_bytes FROM songs WHERE status = 'listo' AND enabled = 1 AND backup = 1 AND archived = 0 ORDER BY position LIMIT 60")
-      .map((x) => ({ id: x.id, url: `/media/backup/song/${x.id}/${x.normalized_sha256.slice(0, 16)}.m4a`, durationMs: x.duration_ms, sha256: x.normalized_sha256 }));
+    // Modo local (?modo=local): el televisor descarga TODA la programación una vez y la reproduce él mismo,
+    // con los comerciales en calidad normal. Así casi no consume Internet del servidor.
+    const local = new URL(req.url, 'http://x').searchParams.get('modo') === 'local';
     const size = (f) => { try { return fs.statSync(f).size; } catch { return null; } };
-    for (const a of ads) a.bytes = size(library.adFile(a.id, 'backup'));
-    for (const x of songs) x.bytes = size(library.songFile(x.id));
+    let ads;
+    if (local) {
+      ads = engine.eligibleAds(Date.now()).map((a) => {
+        const r = db.get('SELECT normalized_sha256, duration_ms FROM ads WHERE id = ?', a.id);
+        if (!r?.normalized_sha256) return null;
+        return { id: a.id, url: `/media/local/ad/${a.id}/${r.normalized_sha256.slice(0, 16)}.mp4`, durationMs: r.duration_ms, sha256: r.normalized_sha256, bytes: size(library.adFile(a.id)) };
+      }).filter(Boolean);
+    } else {
+      ads = backupAds().slice(0, 6).map((a) => {
+        const r = db.get('SELECT backup_sha256, duration_ms FROM ads WHERE id = ?', a.id);
+        return { id: a.id, url: `/media/backup/ad/${a.id}/${r.backup_sha256.slice(0, 16)}.mp4`, durationMs: r.duration_ms, sha256: r.backup_sha256, bytes: size(library.adFile(a.id, 'backup')) };
+      });
+    }
+    const songSql = local
+      ? "SELECT id, normalized_sha256, duration_ms FROM songs WHERE status = 'listo' AND enabled = 1 AND archived = 0 AND normalized_sha256 IS NOT NULL ORDER BY position LIMIT 400"
+      : "SELECT id, normalized_sha256, duration_ms FROM songs WHERE status = 'listo' AND enabled = 1 AND backup = 1 AND archived = 0 ORDER BY position LIMIT 60";
+    const songBase = local ? '/media/local/song' : '/media/backup/song';
+    const songs = db.all(songSql)
+      .map((x) => ({ id: x.id, url: `${songBase}/${x.id}/${x.normalized_sha256.slice(0, 16)}.m4a`, durationMs: x.duration_ms, sha256: x.normalized_sha256, bytes: size(library.songFile(x.id)) }));
     const s = db.getSettings();
     const version = crypto.createHash('sha256').update(JSON.stringify([ads.map((a) => a.sha256), songs.map((x) => x.sha256), s.songs_between_ads])).digest('hex').slice(0, 16);
-    json(res, 200, { version, songsBetweenAds: s.songs_between_ads, ads, songs });
+    json(res, 200, { version, local, songsBetweenAds: s.songs_between_ads, ads, songs });
+  });
+
+  router.get('/media/local/ad/:id/:file', (req, res, ctx) => {
+    const id = Number(ctx.params.id);
+    if (!Number.isInteger(id) || !engine.eligibleAds(Date.now()).some((a) => a.id === id)) throw new HttpError(404, 'No disponible.');
+    sendFile(req, res, library.adFile(id), { cacheControl: 'public, max-age=86400, immutable' });
+  });
+  router.get('/media/local/song/:id/:file', (req, res, ctx) => {
+    const id = Number(ctx.params.id);
+    const ok = Number.isInteger(id) && db.get("SELECT id FROM songs WHERE id = ? AND status = 'listo' AND enabled = 1 AND archived = 0", id);
+    if (!ok) throw new HttpError(404, 'No disponible.');
+    sendFile(req, res, library.songFile(id), { cacheControl: 'public, max-age=86400, immutable' });
   });
 
   router.get('/media/backup/ad/:id/:file', (req, res, ctx) => {

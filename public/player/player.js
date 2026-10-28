@@ -40,6 +40,8 @@
   var m = /\/player\/([a-z0-9-]+)/.exec(location.pathname);
   var SLUG = m ? m[1] : 'sin-sede';
   var API = '/api/public/sites/' + SLUG;
+  // Modo local (?local=1): descarga la programación una vez y la reproduce en el propio televisor (casi sin Internet).
+  var LOCAL = /[?&]local=1/.test(location.search);
   var video = $('live');
   var P = {
     sessionId: uuid(), state: 'cargando', mode: null, hls: null, cfg: null, configVersion: null,
@@ -121,10 +123,12 @@
         var wait = Math.min(30, 2 * P.retry);
         showWait('Sin señal', 'Reconectando automáticamente en ' + wait + ' s');
         if (!P.disconnectedAt) { P.disconnectedAt = now(); logEvent('desconexion', { motivo: 'no se pudo obtener el estado' }); }
-        maybeStartBackup();
+        if (LOCAL) { if (P.backup.ready && P.backup.manifest) { startBackup(); return; } }
+        else maybeStartBackup();
         return setTimeout(boot, wait * 1000);
       }
       P.retry = 0;
+      if (LOCAL) { syncClock(3, startLocal); return; }
       syncClock(5, function () {
         if (P.engineMode !== 'running') { enterEngineStopped(); return; }
         startLive();
@@ -215,7 +219,7 @@
     var p = video.play();
     if (p && p['catch']) p['catch'](function () { /* ignore */ });
     // Desbloquea también los elementos del respaldo con el mismo gesto del usuario.
-    try { ba.muted = false; } catch (e) { /* ignore */ }
+    try { ba.muted = false; if (P.backup.active && ba.paused && ba.getAttribute('src')) { var pb = ba.play(); if (pb && pb['catch']) pb['catch'](function () { /* ignore */ }); } } catch (e) { /* ignore */ }
     P.soundOn = true;
     $('unmute').className = 'screen hidden';
     logEvent('sonido_activado', null);
@@ -253,7 +257,7 @@
   }
 
   function onSignalLost(reason) {
-    if (P.backup.active) return;
+    if (P.backup.active || LOCAL) return;
     if (!P.disconnectedAt) { P.disconnectedAt = now(); logEvent('desconexion', { motivo: reason || 'señal interrumpida' }); }
     var stalled = now() - P.lastProgressAt > 4000 || video.paused;
     if (stalled) setState('reconectando');
@@ -332,7 +336,7 @@
     flushing = true;
     var events = P.events.slice(0, 100); var seqs = P.seqs.slice(); var bplays = P.backupPlays.slice(0, 100);
     var body = {
-      sessionId: P.sessionId, state: P.state, mode: P.backup.active ? 'respaldo local' : P.mode,
+      sessionId: P.sessionId, state: P.state, mode: LOCAL ? 'modo local' : (P.backup.active ? 'respaldo local' : P.mode),
       seq: P.lastSeq, seqs: P.backup.active ? [] : seqs, delayMs: P.delay, syncErrorMs: P.syncErr,
       configVersion: P.configVersion, events: events, backupPlays: bplays, backupStatus: P.backup.status, error: P.lastError
     };
@@ -348,8 +352,8 @@
         P.configVersion = d.configVersion;
         if (d.targetDelayMs) P.targetDelay = d.targetDelayMs;
         var prev = P.engineMode; P.engineMode = d.engineMode;
-        if (P.engineMode === 'running' && (prev !== 'running' || P.waitingForEngine)) { P.waitingForEngine = false; if (!P.backup.active) startLive(); }
-        if (P.engineMode === 'stopped' && prev === 'running' && !P.backup.active) enterEngineStopped();
+        if (!LOCAL && P.engineMode === 'running' && (prev !== 'running' || P.waitingForEngine)) { P.waitingForEngine = false; if (!P.backup.active) startLive(); }
+        if (!LOCAL && P.engineMode === 'stopped' && prev === 'running' && !P.backup.active) enterEngineStopped();
         onServerReachable();
       } else if (err) {
         onServerUnreachable();
@@ -362,7 +366,7 @@
 
   var serverDownSince = null;
   function onServerUnreachable() { if (!serverDownSince) serverDownSince = now(); if (now() - serverDownSince > 15000) onSignalLost('servidor inalcanzable'); }
-  function onServerReachable() { serverDownSince = null; if (P.backup.active) scheduleReturnToLive(); }
+  function onServerReachable() { serverDownSince = null; if (P.backup.active && !LOCAL) scheduleReturnToLive(); }
 
   // ---------------------------------------------------------------- respaldo local
   var BACKUP_CACHE = 'rmdm-respaldo-v1';
@@ -379,19 +383,21 @@
     try { navigator.serviceWorker.register('/player/sw.js', { scope: '/player/' })['catch'](function () { /* ignore */ }); } catch (e) { /* ignore */ }
   }
 
-  function downloadBackup() {
+  function downloadBackup(done) {
+    done = typeof done === 'function' ? done : function () {};
     var why = backupCapable();
-    if (why) { P.backup.status = why; return; }
-    http('GET', API + '/backup-manifest?_=' + now(), null, function (err, man) {
-      if (err || !man) return;
+    if (why) { P.backup.status = why; return done(new Error(why)); }
+    http('GET', API + '/backup-manifest?_=' + now() + (LOCAL ? '&modo=local' : ''), null, function (err, man) {
+      if (err || !man) return done(err || new Error('sin respuesta'));
       var items = man.ads.concat(man.songs);
-      if (!items.length) { P.backup.status = 'sin contenido autorizado para respaldo'; return; }
+      if (!items.length) { P.backup.status = 'sin contenido autorizado para respaldo'; return done(new Error(P.backup.status)); }
       var total = 0; for (var i = 0; i < items.length; i++) total += items[i].bytes || 0;
       var est = navigator.storage && navigator.storage.estimate ? navigator.storage.estimate() : Promise.resolve(null);
       est.then(function (q) {
         if (q && q.quota && q.quota - q.usage < total * 1.2) {
           P.backup.status = 'espacio insuficiente (' + Math.round((q.quota - q.usage) / 1048576) + ' MB libres, se requieren ' + Math.round(total * 1.2 / 1048576) + ' MB)';
           logEvent('respaldo_no_disponible', { motivo: P.backup.status });
+          done(new Error(P.backup.status));
           return;
         }
         if (navigator.storage && navigator.storage.persist) navigator.storage.persist()['catch'](function () { /* ignore */ });
@@ -401,10 +407,12 @@
             var removals = keys.filter(function (k) { return !wanted[k.url]; }).map(function (k) { return cache['delete'](k); });
             return Promise.all(removals).then(function () {
               // Descarga secuencial para no competir con la señal en vivo.
-              var seq = Promise.resolve();
+              var seq = Promise.resolve(); var n = 0;
               items.forEach(function (it) {
                 seq = seq.then(function () {
-                  return cache.match(it.url).then(function (hit) { if (!hit) return cache.add(it.url); });
+                  return cache.match(it.url).then(function (hit) { if (!hit) return cache.add(it.url); }).then(function () {
+                    n++; if (LOCAL && !P.backup.active) showWait('Descargando música y comerciales…', n + ' de ' + items.length + ' archivos (solo la primera vez)');
+                  });
                 });
               });
               return seq;
@@ -415,8 +423,9 @@
           lsSet('rmdm-backup-manifest', man);
           P.backup.status = 'listo: ' + man.ads.length + ' comercial(es), ' + man.songs.length + ' canción(es), ' + Math.round(total / 1048576) + ' MB';
           logEvent('respaldo_descargado', { version: man.version, bytes: total });
+          done(null);
         });
-      })['catch'](function (e) { P.backup.status = 'error al descargar: ' + (e && e.message); });
+      })['catch'](function (e) { P.backup.status = 'error al descargar: ' + (e && e.message); done(e); });
     });
   }
 
@@ -496,9 +505,23 @@
     blobUrl(song.url).then(function (u) {
       B.urls.push(u);
       ba.src = u; ba.onended = function () { B.songsSince++; nextBackupItem(); };
-      var p = ba.play(); if (p && p['catch']) p['catch'](function () { askForSound(); });
+      var p = ba.play(); if (p && p['catch']) p.then(function () { if (!P.soundOn) { P.soundOn = true; $('unmute').className = 'screen hidden'; } }, function () { askForSound(); });
     })['catch'](function () { setTimeout(nextBackupItem, 1000); });
     while (B.urls.length > 6) { try { URL.revokeObjectURL(B.urls.shift()); } catch (e) { /* ignore */ } }
+  }
+
+  function startLocal() {
+    var why = backupCapable();
+    if (why) { showWait('Este televisor no permite el modo local', why + '. Use el link sin "?local=1".'); return; }
+    function go() { if (!P.backup.active && P.backup.ready && P.backup.manifest) startBackup(); }
+    if (P.backup.ready && P.backup.manifest) go(); // ya descargado antes: arranca de inmediato sin Internet
+    showWait('Descargando música y comerciales…', 'Solo la primera vez');
+    downloadBackup(function (err) {
+      if (!err) return go();
+      if (P.backup.ready) return go();
+      showWait('No se pudo descargar la programación', (P.backup.status || '') + ' — reintentando en 30 s');
+      setTimeout(startLocal, 30000);
+    });
   }
 
   function scheduleReturnToLive() {
@@ -532,7 +555,7 @@
   }
 
   // ---------------------------------------------------------------- inicio
-  window.addEventListener('online', function () { if (!P.backup.active && P.state !== 'reproduciendo') restartLive(); });
+  window.addEventListener('online', function () { if (!LOCAL && !P.backup.active && P.state !== 'reproduciendo') restartLive(); });
   window.addEventListener('offline', function () { onSignalLost('el dispositivo perdió Internet'); });
   if (navigator.wakeLock && navigator.wakeLock.request) { try { navigator.wakeLock.request('screen')['catch'](function () { /* ignore */ }); } catch (e) { /* ignore */ } }
 
@@ -544,6 +567,7 @@
   // El respaldo se descarga cuando la señal ya está estable, y se revisa cada 30 minutos.
   (function scheduleBackup() {
     if (!P.cfg) { setTimeout(scheduleBackup, 2000); return; }
+    if (LOCAL) { setInterval(downloadBackup, 10 * 60 * 1000); return; } // revisa comerciales nuevos cada 10 min
     setTimeout(downloadBackup, ((P.cfg.player && P.cfg.player.backupDownloadDelaySeconds) || 60) * 1000);
     setInterval(downloadBackup, 30 * 60 * 1000);
   })();
