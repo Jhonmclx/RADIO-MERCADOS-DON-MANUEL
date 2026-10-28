@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RADIO MERCADO DON MANUEL — instalación en un servidor gratis de Oracle Cloud (Ubuntu 22.04/24.04, ARM o x86).
+# RADIO MERCADO DON MANUEL — instalación en un servidor Ubuntu 22.04/24.04 (Oracle Cloud, Azure for Students u otro; ARM o x86).
 # Uso (desde la terminal SSH del servidor):
 #   curl -fsSL https://raw.githubusercontent.com/Jhonmclx/RADIO-MERCADOS-DON-MANUEL/main/deploy/oracle.sh -o oracle.sh
 #   sudo bash oracle.sh "<SUPABASE_URL>" "<SUPABASE_KEY>" "<CONTRASEÑA_ADMIN>"
@@ -17,6 +17,12 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y ca-certificates curl git iptables-persistent >/dev/null || apt-get install -y ca-certificates curl git
 if ! command -v docker >/dev/null; then curl -fsSL https://get.docker.com | sh; fi
+
+# Servidores pequeños (1 GB de RAM, p. ej. Azure B1s/B2ats): se agrega memoria de intercambio para que FFmpeg no se quede sin memoria.
+if [ "$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)" -lt 3000 ] && ! swapon --show | grep -q /swapfile; then
+  echo "==> Agregando 2 GB de memoria de intercambio…"
+  fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile >/dev/null && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
 
 echo "==> Abriendo los puertos 80 y 443 en el firewall interno de Oracle…"
 for p in 80 443; do
