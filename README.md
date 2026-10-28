@@ -57,6 +57,7 @@ docs/                              arquitectura, manual, despliegue, televisores
 * [Televisores: instalación, diagnóstico y limitaciones](docs/TELEVISORES.md)
 * [Pruebas y resultados](docs/PRUEBAS.md)
 * [Costos y ancho de banda](docs/COSTOS.md)
+* [Cómo tenerla gratis y probarla en el celular](docs/GRATIS.md)
 
 ## Estado
 

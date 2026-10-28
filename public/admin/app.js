@@ -173,7 +173,7 @@ function route() {
   const page = (location.hash.replace('#/', '') || 'inicio').split('?')[0];
   const def = PAGES.find(([k]) => k === page) || PAGES[0];
   S.page = def[0];
-  $$('.nav a').forEach((a) => a.classList.toggle('active', a.dataset.page === S.page));
+  $$('.nav a').forEach((a) => { a.classList.toggle('active', a.dataset.page === S.page); if (a.dataset.page === S.page) { const nav = a.parentElement; nav.scrollLeft = a.offsetLeft - (nav.clientWidth - a.offsetWidth) / 2; } });
   $('#ptitle').textContent = def[1];
   const el = $('#page');
   el.innerHTML = '<p class="muted">Cargando…</p>';

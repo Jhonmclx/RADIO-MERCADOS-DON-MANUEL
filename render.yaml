@@ -1,0 +1,32 @@
+# Demo gratuita en Render (plan Free). Ver docs/GRATIS.md.
+# Atención: en el plan Free el servicio se duerme tras 15 min sin visitas y NO conserva datos.
+services:
+  - type: web
+    name: radio-mercado-don-manuel
+    runtime: docker
+    plan: free
+    region: ohio
+    dockerfilePath: ./deploy/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: DEMO_SEED
+        value: "true"
+      - key: ADMIN_USER
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: VIDEO_WIDTH
+        value: "854"
+      - key: VIDEO_HEIGHT
+        value: "480"
+      - key: VIDEO_BITRATE_KBPS
+        value: "900"
+      - key: X264_PRESET
+        value: ultrafast
+      - key: BACKUP_VIDEO_HEIGHT
+        value: "240"
+      - key: TRUST_PROXY
+        value: "true"
+      - key: COOKIE_SECURE
+        value: "true"

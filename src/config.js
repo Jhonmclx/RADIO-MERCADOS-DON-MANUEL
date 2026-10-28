@@ -42,7 +42,7 @@ export function buildConfig(env = process.env) {
     mediaDir: path.join(dataDir, 'media'),
     liveDir: path.join(dataDir, 'live'),
     renderDir: path.join(dataDir, 'render'),
-    slateDir: path.join(dataDir, 'slates'),
+    slateDir: path.resolve(env.SLATE_DIR || path.join(dataDir, 'slates')),
     tmpDir: path.join(dataDir, 'tmp'),
     backupDir: path.resolve(env.BACKUP_DIR || path.join(dataDir, 'backups')),
     ffmpeg: env.FFMPEG_PATH || 'ffmpeg',

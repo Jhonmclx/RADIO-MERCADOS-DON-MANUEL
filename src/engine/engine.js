@@ -250,7 +250,14 @@ export class Engine extends EventEmitter {
     const k = it.published;
     const seg = it.segments[k];
     const pdt = this._segStart(it, k);
-    const seq = this.publisher.publish(seg.file, seg.dur, pdt, it.id);
+    let seq;
+    try { seq = this.publisher.publish(seg.file, seg.dur, pdt, it.id); }
+    catch (e) {
+      // Archivo preparado perdido o ilegible: se cierra el elemento como interrumpido y la señal continúa.
+      this._error(`No se pudo publicar un segmento de "${it.title}"`, e);
+      this._finishCurrent('interrumpido', `Error al publicar el segmento ${k + 1}: ${e.code || e.message}`);
+      return;
+    }
     it.published += 1; it.publishedMs += seg.dur * 1000;
     if (it.firstSeq == null) it.firstSeq = seq;
     it.lastSeq = seq;

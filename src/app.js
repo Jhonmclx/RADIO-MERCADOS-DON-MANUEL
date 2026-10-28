@@ -11,6 +11,7 @@ import { Sessions, RateLimiter, securityHeaders, hashPassword, validatePasswordS
 import { registerAdminRoutes } from './http/admin-routes.js';
 import { registerPublicRoutes } from './http/public-routes.js';
 import { runProcess } from './media/ffmpeg.js';
+import { seedDemo } from './demo-seed.js';
 
 export async function createApp(cfg, { logToConsole = true } = {}) {
   for (const d of [cfg.dataDir, cfg.mediaDir, cfg.liveDir, cfg.renderDir, cfg.tmpDir]) fs.mkdirSync(d, { recursive: true });
@@ -45,6 +46,7 @@ export async function createApp(cfg, { logToConsole = true } = {}) {
   });
   await engine.init();
   library.resumePending();
+  if (process.env.DEMO_SEED === 'true') seedDemo({ cfg, db, library, log });
 
   const router = new Router();
   const app = { cfg, db, engine, library, reports, sessions, log };

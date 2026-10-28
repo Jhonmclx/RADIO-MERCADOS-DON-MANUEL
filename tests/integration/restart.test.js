@@ -82,3 +82,24 @@ test('caída larga: los segmentos que no se emitieron se registran como interrup
   assert.match(row.note, /no se emitieron|Reinicio/);
   assert.ok(row.duration_ms < 30_000, 'la duración registrada es solo lo realmente emitido');
 });
+
+test('si un archivo preparado desaparece, el elemento se registra como interrumpido y la señal continúa', { timeout: 4 * 60_000 }, async (t) => {
+  const fs = await import('node:fs');
+  const dataDir = tmpDir('missing');
+  const srv = await startServer({ dataDir });
+  t.after(async () => { await srv.stop(); });
+  const admin = new AdminClient(srv.url);
+  await admin.login();
+  await admin.put('/api/admin/schedule/hours', { hours: Array.from({ length: 7 }, (_, d) => ({ weekday: d, start: '00:00', end: '24:00' })) });
+  await admin.upload('song', FIX.song1); await admin.upload('song', FIX.song2);
+  await waitFor(async () => (await admin.get('/api/admin/music')).data.songs.filter((s) => s.status === 'listo').length === 2, { label: 'canciones' });
+  const e = await waitFor(async () => { const r = (await admin.get('/api/admin/engine')).data; return r.onAir?.kind === 'song' && r.next?.ready && r.next.id && r; }, { timeout: 60_000, label: 'siguiente listo' });
+  const victim = e.next.id;
+  for (const d of fs.readdirSync(path.join(dataDir, 'render'))) if (d.startsWith(`item-${victim}-`)) fs.rmSync(path.join(dataDir, 'render', d), { recursive: true, force: true });
+  await waitFor(async () => (await admin.get('/api/admin/logs?type=asrun')).data.items.find((i) => i.id === victim && i.status === 'interrumpido'), { timeout: 60_000, label: 'elemento interrumpido' });
+  const seqBefore = (await admin.get('/api/admin/engine')).data.mediaSequence;
+  await sleep(6000);
+  const st = (await admin.get('/api/admin/engine')).data;
+  assert.ok(st.mediaSequence > seqBefore, 'la señal sigue publicando segmentos');
+  assert.equal((await fetch(`${srv.url}/healthz`)).status, 200);
+});

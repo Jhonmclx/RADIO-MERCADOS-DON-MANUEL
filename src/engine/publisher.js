@@ -33,11 +33,12 @@ export class Publisher {
 
   /** Publica un segmento ya renderizado. Devuelve el número de secuencia asignado. */
   publish(srcFile, dur, pdt, itemId) {
-    const seq = this.nextSeq++;
+    const seq = this.nextSeq;
     const name = `s${seq}.ts`;
     const dst = path.join(this.dir, name);
     try { fs.rmSync(dst, { force: true }); fs.linkSync(srcFile, dst); }
-    catch { fs.copyFileSync(srcFile, dst); }
+    catch { fs.copyFileSync(srcFile, dst); } // si el origen no existe, lanza el error sin consumir el número
+    this.nextSeq += 1;
     this.window.push({ seq, name, dur, disc: this.pendingDisc, pdt, itemId });
     this.pendingDisc = false;
     this.ended = false;
