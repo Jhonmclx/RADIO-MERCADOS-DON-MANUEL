@@ -1,0 +1,40 @@
+# Despliegue en un único servidor: la radio + Caddy (HTTPS automático con Let's Encrypt).
+# Uso:  cd deploy && cp ../.env.example ../.env  (complete los valores)  &&  docker compose up -d --build
+services:
+  radio:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    env_file: ../.env
+    environment:
+      DATA_DIR: /data
+      BACKUP_DIR: /data/backups
+      PORT: "8080"
+      TRUST_PROXY: "true"
+    volumes:
+      - radio-data:/data
+    expose:
+      - "8080"
+    logging:
+      driver: json-file
+      options: { max-size: "20m", max-file: "5" }
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [radio]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Defina DOMAIN, por ejemplo radio.su-dominio.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  radio-data:
+  caddy-data:
+  caddy-config:

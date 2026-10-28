@@ -1,0 +1,22 @@
+{
+  "name": "radio-mercado-don-manuel",
+  "version": "1.0.0",
+  "description": "RADIO MERCADO DON MANUEL — radio en vivo y publicidad audiovisual sincronizada para cinco sedes",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "migrate": "node --disable-warning=ExperimentalWarning src/cli/migrate.js",
+    "create-admin": "node --disable-warning=ExperimentalWarning src/cli/create-admin.js",
+    "backup": "node --disable-warning=ExperimentalWarning src/cli/backup.js",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 \"tests/unit/*.test.js\" \"tests/integration/*.test.js\"",
+    "test:unit": "node --disable-warning=ExperimentalWarning --test \"tests/unit/*.test.js\"",
+    "test:e2e": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 \"tests/e2e/*.test.js\"",
+    "test:integration": "node --disable-warning=ExperimentalWarning --test --test-concurrency=1 \"tests/integration/*.test.js\""
+  },
+  "license": "UNLICENSED"
+}

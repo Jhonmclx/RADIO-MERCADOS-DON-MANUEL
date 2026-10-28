@@ -1,0 +1,21 @@
+# Alternativa sin Docker: servicio systemd (Ubuntu). Requiere Node.js 22+ y ffmpeg instalados.
+# sudo cp radio.service /etc/systemd/system/ && sudo systemctl enable --now radio
+[Unit]
+Description=RADIO MERCADO DON MANUEL
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=radio
+WorkingDirectory=/opt/radio-mercado-don-manuel
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning src/server.js
+Restart=always
+RestartSec=3
+Environment=NODE_ENV=production
+NoNewPrivileges=true
+ProtectSystem=full
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

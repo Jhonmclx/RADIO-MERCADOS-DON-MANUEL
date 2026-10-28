@@ -1,0 +1,28 @@
+/* Reproductor para televisores — elementos grandes, sin controles innecesarios */
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.hidden { display: none !important; }
+#backup { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; }
+.screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; display: -webkit-box; display: -webkit-flex; display: flex;
+  -webkit-box-align: center; -webkit-align-items: center; align-items: center; -webkit-box-pack: center; -webkit-justify-content: center; justify-content: center; }
+#wait { background: #0e5a32; background: radial-gradient(circle at 25% 25%, #137a45, #0b4a29 70%); color: #fff8e7; text-align: center; }
+.wait-logo { width: 14vh; height: 14vh; }
+.wait-name { font-weight: 800; font-size: 6vh; letter-spacing: .06em; line-height: 1.15; margin: 2.5vh 0; }
+.wait-name span { color: #f4b41a; }
+.wait-msg { font-size: 3.4vh; font-weight: 600; }
+.wait-sub { font-size: 2.4vh; opacity: .8; margin-top: 1vh; min-height: 3vh; }
+.wait-clock { font-size: 3vh; margin-top: 4vh; opacity: .75; }
+#unmute { background: rgba(0, 0, 0, .55); }
+.unmute-btn { background: #f4b41a; color: #1c1300; border: 0; border-radius: 2vh; padding: 4vh 6vh; cursor: pointer; max-width: 80vw;
+  box-shadow: 0 0 0 1vh rgba(244, 180, 26, .35); }
+.unmute-btn:focus { outline: .6vh solid #fff; }
+.unmute-btn .big { display: block; font-size: 5vh; font-weight: 800; }
+.unmute-btn .small { display: block; font-size: 2.4vh; margin-top: 1.5vh; }
+.badge { position: fixed; top: 2.2vh; right: 2.2vh; display: -webkit-box; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  background: rgba(0, 0, 0, .45); color: #fff; border-radius: 99px; padding: .8vh 1.6vh; font-size: 2vh; opacity: .75; }
+.badge .dot { width: 1.4vh; height: 1.4vh; border-radius: 50%; background: #2ecc71; }
+.badge #badgeText { margin-left: 1vh; }
+.badge.quiet #badgeText { display: none; }
+.badge.quiet { padding: .8vh; opacity: .45; }
+.badge.warn .dot { background: #f4b41a; }
+.badge.err .dot { background: #e74c3c; }

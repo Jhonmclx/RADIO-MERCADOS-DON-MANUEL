@@ -1,0 +1,34 @@
+# Caddy obtiene y renueva solo el certificado HTTPS del dominio.
+{$DOMAIN} {
+	encode {
+		gzip
+		match {
+			header Content-Type text/*
+			header Content-Type application/json*
+			header Content-Type application/javascript*
+			header Content-Type application/vnd.apple.mpegurl*
+		}
+	}
+	# Las cargas de comerciales pueden ser grandes.
+	request_body {
+		max_size 2200MB
+	}
+	reverse_proxy radio:8080 {
+		header_up X-Forwarded-Host {host}
+		flush_interval -1
+		transport http {
+			read_timeout 30m
+			write_timeout 30m
+		}
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	log {
+		output file /data/access.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}

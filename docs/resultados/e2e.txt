@@ -1,0 +1,21 @@
+# Subtest: reproductores en navegador real: cinco sedes, sincronización medida, reconexión, autoplay y respaldo
+    ok 1 - las cinco páginas de sede reproducen la señal central con sonido
+    ok 2 - sincronización: se MIDE el retraso de cada sede respecto a la hora oficial y la dispersión entre sedes
+    ok 3 - confirmación por sede con telemetría real del reproductor (segmentos de hls.js)
+    ok 4 - un televisor que entra tarde se une al punto actual (no empieza desde el principio)
+    ok 5 - 14 y 15 (navegador). una sede pierde Internet, las demás siguen; al volver recupera la señal central
+    ok 6 - respaldo local: descarga autorizada, reproducción sin Internet marcada como respaldo y regreso controlado
+    ok 7 - señal detenida: las sedes muestran la pantalla de espera y vuelven solas al reiniciar
+    ok 8 - autoplay bloqueado: se muestra la pantalla de activación y basta con pulsar OK
+    ok 9 - página de diagnóstico del televisor
+ok 1 - reproductores en navegador real: cinco sedes, sincronización medida, reconexión, autoplay y respaldo
+# Sincronización medida: {"fecha":"2026-10-28T06:11:12.570Z","entorno":"Chromium sin interfaz en el mismo equipo del servidor (red local)","dispersionEntreSedesMs":{"max":269,"promedio":180},"desvioRespectoAlObjetivoMs":{"maxAbs":216,"promedio":109},"muestras":10}
+# Estado del respaldo en sede-4: listo: 1 comercial(es), 2 canción(es), 0 MB
+# tests 10
+# suites 0
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 116847.611359

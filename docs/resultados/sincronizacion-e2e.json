@@ -1,0 +1,13 @@
+{
+  "fecha": "2026-10-28T06:11:12.570Z",
+  "entorno": "Chromium sin interfaz en el mismo equipo del servidor (red local)",
+  "dispersionEntreSedesMs": {
+    "max": 269,
+    "promedio": 180
+  },
+  "desvioRespectoAlObjetivoMs": {
+    "maxAbs": 216,
+    "promedio": 109
+  },
+  "muestras": 10
+}

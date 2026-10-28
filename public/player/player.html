@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0e5a32">
+  <title>RADIO MERCADO DON MANUEL</title>
+  <link rel="icon" href="/static/assets/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/player/player.css">
+</head>
+<body>
+  <video id="live" playsinline webkit-playsinline autoplay muted></video>
+
+  <!-- Respaldo local: solo se usa cuando no hay señal central y el navegador lo permite -->
+  <div id="backup" class="hidden">
+    <video id="bvideo" playsinline webkit-playsinline muted></video>
+    <audio id="baudio"></audio>
+  </div>
+
+  <!-- Pantalla de espera -->
+  <div id="wait" class="screen">
+    <div class="wait-box">
+      <img src="/static/assets/logo.svg" alt="" class="wait-logo">
+      <div class="wait-name">RADIO MERCADO<br><span>DON MANUEL</span></div>
+      <div id="waitMsg" class="wait-msg">Conectando con la señal…</div>
+      <div id="waitSub" class="wait-sub"></div>
+      <div id="clock" class="wait-clock"></div>
+    </div>
+  </div>
+
+  <!-- Activación de sonido cuando el navegador bloquea la reproducción automática -->
+  <div id="unmute" class="screen hidden">
+    <button id="unmuteBtn" class="unmute-btn" type="button">
+      <span class="big">Pulse OK para activar el sonido</span>
+      <span class="small">El navegador de este televisor exige una pulsación para reproducir audio.</span>
+    </button>
+  </div>
+
+  <div id="badge" class="badge" aria-live="polite"><span class="dot"></span><span id="badgeText"></span></div>
+  <script src="/static/vendor/hls.min.js"></script>
+  <script src="/static/player/player.js"></script>
+</body>
+</html>
