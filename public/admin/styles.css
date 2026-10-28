@@ -159,3 +159,7 @@ tr.drop-target td { border-top: 3px solid var(--ambar); }
   .modal-bg { padding: 2vh 8px; }
   .week .col, .week .hours { height: 240px; }
 }
+/* Evita que tarjetas con enlaces largos se salgan de la pantalla en el celular */
+.grid > * { min-width: 0; }
+.linkbox { flex-wrap: wrap; }
+.linkbox code { min-width: 0; flex: 1 1 100%; white-space: normal; word-break: break-all; }
