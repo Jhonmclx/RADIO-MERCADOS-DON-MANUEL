@@ -207,7 +207,7 @@ function onAirCard(st) {
 function siteMini(s) {
   return `<div class="card site-card"><div class="name"><span class="tv">📺</span> ${esc(s.name)}</div>
     <div>${chip(LABEL.connection[s.connection])}</div>
-    <div class="small">${chip(LABEL.player[s.playerState] || LABEL.player.desconocido)}</div>
+    <div class="small">${chip(LABEL.player[(s.playerState === 'respaldo' && s.playerMode === 'modo local') ? 'modo_local' : s.playerState] || LABEL.player.desconocido)}</div>
     <div class="small muted">Último contacto: ${fmtAgo(s.lastSeenAt)}</div>
     ${s.delayMs != null ? `<div class="small muted" title="Retraso medido por el televisor respecto a la hora oficial de emisión">Retraso: ${(s.delayMs / 1000).toFixed(2)} s${s.syncErrorMs != null ? ` (desvío ${s.syncErrorMs > 0 ? '+' : ''}${s.syncErrorMs} ms)` : ''}</div>` : '<div class="small muted">Retraso: no medido</div>'}
     ${s.connection === 'conectada' && !s.configUpToDate ? '<div class="small"><span class="chip info">configuración pendiente</span></div>' : ''}</div>`;
@@ -319,7 +319,7 @@ RENDER.sedes = async (el) => {
           <div class="small muted">Identificador: <span class="mono">${esc(s.slug)}</span>${s.description ? ` · ${esc(s.description)}` : ''}</div>
           <div class="linkbox"><code>${esc(full)}</code><button class="btn sm" data-copy="${esc(full)}">Copiar</button><a class="btn sm" href="${esc(s.path)}" target="_blank" rel="noopener">Abrir</a></div>
           <table class="small"><tbody>
-            <tr><td>Estado de reproducción</td><td>${chip(LABEL.player[s.playerState] || LABEL.player.desconocido)}</td></tr>
+            <tr><td>Estado de reproducción</td><td>${chip(LABEL.player[(s.playerState === 'respaldo' && s.playerMode === 'modo local') ? 'modo_local' : s.playerState] || LABEL.player.desconocido)}</td></tr>
             <tr><td>Último contacto</td><td>${fmtAgo(s.lastSeenAt)} ${s.lastSeenAt ? `<span class="muted">(${fmtDT(s.lastSeenAt)})</span>` : ''}</td></tr>
             <tr><td>Versión de configuración</td><td>${s.lastConfigVersion != null ? `v${s.lastConfigVersion} ${s.configUpToDate ? chip(['al día', 'ok']) : chip(['desactualizada', 'warn'])}` : '—'}</td></tr>
             <tr><td>Retraso medido</td><td>${s.delayMs != null ? `${(s.delayMs / 1000).toFixed(2)} s · desvío ${s.syncErrorMs ?? '—'} ms` : 'no medido'}</td></tr>
