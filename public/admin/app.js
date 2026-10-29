@@ -323,7 +323,7 @@ RENDER.sedes = async (el) => {
             <tr><td>Último contacto</td><td>${fmtAgo(s.lastSeenAt)} ${s.lastSeenAt ? `<span class="muted">(${fmtDT(s.lastSeenAt)})</span>` : ''}</td></tr>
             <tr><td>Versión de configuración</td><td>${s.lastConfigVersion != null ? `v${s.lastConfigVersion} ${s.configUpToDate ? chip(['al día', 'ok']) : chip(['desactualizada', 'warn'])}` : '—'}</td></tr>
             <tr><td>Retraso medido</td><td>${s.delayMs != null ? `${(s.delayMs / 1000).toFixed(2)} s · desvío ${s.syncErrorMs ?? '—'} ms` : 'no medido'}</td></tr>
-            <tr><td>Reproductor</td><td>${esc(s.playerMode || '—')}</td></tr>
+            <tr><td>Reproductor</td><td>${esc(s.playerMode === 'modo local' ? 'En vivo' : (s.playerMode || '—'))}</td></tr>
             <tr><td>Respaldo local</td><td>${esc(s.backupStatus || '—')}</td></tr>
             <tr><td>Última reconexión</td><td>${s.lastReconnectAt ? `${fmtDT(s.lastReconnectAt)} · estuvo sin contacto ${fmtDur(s.lastDisconnectMs)}` : '—'}</td></tr>
             <tr><td>Último error</td><td>${s.lastError ? `${esc(s.lastError)} <span class="muted">(${fmtAgo(s.lastErrorAt)})</span>` : '—'}</td></tr>
