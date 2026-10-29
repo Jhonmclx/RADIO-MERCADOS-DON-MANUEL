@@ -29,3 +29,8 @@ video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit:
 .badge.quiet { padding: .8vh; opacity: .45; }
 .badge.warn .dot { background: #f4b41a; }
 .badge.err .dot { background: #e74c3c; }
+
+.fs-btn { position: fixed; right: 2vh; bottom: 2vh; z-index: 50; width: 7vh; height: 7vh; min-width: 44px; min-height: 44px; padding: 1.2vh;
+  background: rgba(0, 0, 0, .55); border: 1px solid rgba(255, 255, 255, .35); border-radius: 1.4vh; cursor: pointer; opacity: 0; -webkit-transition: opacity .3s; transition: opacity .3s; box-sizing: border-box; }
+.fs-btn.show, .fs-btn:focus { opacity: 1; }
+body.pointer { cursor: default; }

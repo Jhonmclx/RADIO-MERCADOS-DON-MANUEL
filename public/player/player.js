@@ -573,6 +573,26 @@
     }, 150);
   }
 
+  // ---------------------------------------------------------------- pantalla completa
+  (function () {
+    var btn = $('fsBtn'); if (!btn) return;
+    var d = document, el = d.documentElement, hideT = null;
+    function isFs() { return !!(d.fullscreenElement || d.webkitFullscreenElement || d.mozFullScreenElement || d.msFullscreenElement); }
+    function toggle() {
+      try {
+        if (isFs()) { var x = d.exitFullscreen || d.webkitExitFullscreen || d.mozCancelFullScreen || d.msExitFullscreen; if (x) { var r = x.call(d); if (r && r['catch']) r['catch'](function () {}); } }
+        else { var f = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen; if (f) { var r2 = f.call(el); if (r2 && r2['catch']) r2['catch'](function () {}); } }
+      } catch (e) { /* ignore */ }
+    }
+    function refresh() { var on = isFs(); $('fsIn').style.display = on ? 'none' : ''; $('fsOut').style.display = on ? '' : 'none'; btn.title = on ? 'Salir de pantalla completa' : 'Pantalla completa'; }
+    function show() { btn.className = 'fs-btn show'; d.body.className = 'pointer'; clearTimeout(hideT); hideT = setTimeout(function () { btn.className = 'fs-btn'; d.body.className = ''; }, 3000); }
+    btn.onclick = function (e) { e.stopPropagation(); toggle(); show(); };
+    ['mousemove', 'touchstart', 'click'].forEach(function (ev) { d.addEventListener(ev, show); });
+    ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(function (ev) { d.addEventListener(ev, refresh); });
+    d.addEventListener('keydown', function (e) { if (e.keyCode === 70) toggle(); }); // tecla F
+    refresh();
+  })();
+
   // ---------------------------------------------------------------- inicio
   window.addEventListener('online', function () { if (!LOCAL && !P.backup.active && P.state !== 'reproduciendo') restartLive(); });
   window.addEventListener('offline', function () { onSignalLost('el dispositivo perdió Internet'); });

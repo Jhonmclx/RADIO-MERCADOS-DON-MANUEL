@@ -39,6 +39,12 @@
     </button>
   </div>
 
+  <!-- Botón de pantalla completa / pantalla normal (aparece al mover el mouse o tocar la pantalla) -->
+  <button id="fsBtn" class="fs-btn" type="button" title="Pantalla completa" aria-label="Pantalla completa">
+    <svg id="fsIn" viewBox="0 0 24 24" width="100%" height="100%"><path fill="#fff" d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/></svg>
+    <svg id="fsOut" viewBox="0 0 24 24" width="100%" height="100%" style="display:none"><path fill="#fff" d="M8 4h2v6H4V8h4V4zm6 0h2v4h4v2h-6V4zM4 14h6v6H8v-4H4v-2zm10 0h6v2h-4v4h-2v-6z"/></svg>
+  </button>
+
   <div id="badge" class="badge" aria-live="polite"><span class="dot"></span><span id="badgeText"></span></div>
   <script src="/static/vendor/hls.min.js"></script>
   <script src="/static/player/player.js"></script>
