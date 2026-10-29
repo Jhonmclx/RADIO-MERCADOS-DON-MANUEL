@@ -364,8 +364,9 @@
       if (cb) cb();
     }, 6000);
   }
-  function heartbeatLoop() { flush(); setTimeout(heartbeatLoop, ((P.cfg && P.cfg.heartbeatSeconds) || 5) * 1000); }
-  setInterval(function () { syncClock(3); }, 10 * 60 * 1000);
+  // En modo local se reporta cada 30 s (ahorra datos); con señal en vivo, cada 5 s.
+  function heartbeatLoop() { flush(); setTimeout(heartbeatLoop, LOCAL ? 30000 : ((P.cfg && P.cfg.heartbeatSeconds) || 5) * 1000); }
+  setInterval(function () { syncClock(3); }, (LOCAL ? 60 : 10) * 60 * 1000);
 
   var serverDownSince = null;
   function onServerUnreachable() { if (!serverDownSince) serverDownSince = now(); if (now() - serverDownSince > 15000) onSignalLost('servidor inalcanzable'); }
@@ -606,7 +607,7 @@
   // El respaldo se descarga cuando la señal ya está estable, y se revisa cada 30 minutos.
   (function scheduleBackup() {
     if (!P.cfg) { setTimeout(scheduleBackup, 2000); return; }
-    if (LOCAL) { setInterval(function () { downloadBackup(applyLocalSettings); }, 10 * 60 * 1000); return; } // revisa comerciales nuevos cada 10 min
+    if (LOCAL) { setInterval(function () { downloadBackup(applyLocalSettings); }, 60 * 60 * 1000); return; } // los cambios llegan por el reporte; esto es solo una revisión de seguridad cada hora
     setTimeout(downloadBackup, ((P.cfg.player && P.cfg.player.backupDownloadDelaySeconds) || 60) * 1000);
     setInterval(downloadBackup, 30 * 60 * 1000);
   })();

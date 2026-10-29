@@ -17,11 +17,11 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
       - key: VIDEO_WIDTH
-        value: "854"
+        value: "1280"
       - key: VIDEO_HEIGHT
-        value: "480"
+        value: "720"
       - key: VIDEO_BITRATE_KBPS
-        value: "900"
+        value: "1500"
       - key: X264_PRESET
         value: ultrafast
       - key: BACKUP_VIDEO_HEIGHT
