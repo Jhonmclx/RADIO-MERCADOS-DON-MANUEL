@@ -36,6 +36,17 @@ test('modo local: descarga una vez, reproduce canciones y comercial con sonido, 
     // Avanza al final de las canciones para llegar al comercial
     for (let i = 0; i < 2; i++) { await page.evaluate(() => { const a = document.getElementById('baudio'); a.currentTime = Math.max(0, a.duration - 0.3); }); await sleep(1500); }
     await waitFor(async () => page.evaluate(() => { const v = document.getElementById('bvideo'); return !v.loop && !v.muted && !v.paused; }), { timeout: 20_000, label: 'comercial con sonido' });
+    // "Pausar la música" en el panel: la canción se detiene y el comercial queda en ciclo con sonido
+    await page.evaluate(() => { const a = document.getElementById('baudio'); if (!a.paused) a.currentTime = 0; });
+    await admin.post('/api/admin/engine/action', { action: 'pausar_musica' });
+    const adOnly = () => page.evaluate(() => { const v = document.getElementById('bvideo'); const a = document.getElementById('baudio'); return a.paused && !v.loop && !v.muted && !v.paused; });
+    await waitFor(adOnly, { timeout: 30_000, label: 'solo comercial con sonido' });
+    const before = (await st()).plays;
+    await page.evaluate(() => { const v = document.getElementById('bvideo'); v.currentTime = Math.max(0, v.duration - 0.3); });
+    await waitFor(async () => (await st()).plays > before && await adOnly(), { timeout: 20_000, label: 'el comercial se repite' });
+    await admin.post('/api/admin/engine/action', { action: 'reanudar_musica' });
+    await page.evaluate(() => { const v = document.getElementById('bvideo'); v.currentTime = Math.max(0, v.duration - 0.3); });
+    await waitFor(async () => (await st()).audio, { timeout: 30_000, label: 'vuelve la música' });
     // Sin Internet: sigue sonando
     await ctx.setOffline(true);
     await sleep(8000);

@@ -154,8 +154,9 @@ export function registerPublicRoutes(router, app) {
     const songs = db.all(songSql)
       .map((x) => ({ id: x.id, url: `${songBase}/${x.id}/${x.normalized_sha256.slice(0, 16)}.m4a`, durationMs: x.duration_ms, sha256: x.normalized_sha256, bytes: size(library.songFile(x.id)) }));
     const s = db.getSettings();
-    const version = crypto.createHash('sha256').update(JSON.stringify([ads.map((a) => a.sha256), songs.map((x) => x.sha256), s.songs_between_ads])).digest('hex').slice(0, 16);
-    json(res, 200, { version, local, songsBetweenAds: s.songs_between_ads, ads, songs });
+    const musicPaused = !!s.music_paused; const adsPaused = !!s.ads_paused;
+    const version = crypto.createHash('sha256').update(JSON.stringify([ads.map((a) => a.sha256), songs.map((x) => x.sha256), s.songs_between_ads, musicPaused, adsPaused])).digest('hex').slice(0, 16);
+    json(res, 200, { version, local, songsBetweenAds: s.songs_between_ads, musicPaused, adsPaused, configVersion: s.config_version, ads, songs });
   });
 
   router.get('/media/local/ad/:id/:file', (req, res, ctx) => {

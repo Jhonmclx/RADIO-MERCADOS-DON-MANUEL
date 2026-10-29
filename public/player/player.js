@@ -349,6 +349,9 @@
         P.seqs = P.seqs.filter(function (s) { return seqs.indexOf(s) < 0; });
         P.lastError = null;
         if (d.serverNow) { /* reloj ya sincronizado; se corrige periódicamente con syncClock */ }
+        if (LOCAL && P.backup.manifest && d.configVersion != null && d.configVersion !== P.backup.manifest.configVersion && !B.refreshing) {
+          B.refreshing = true; downloadBackup(function () { B.refreshing = false; applyLocalSettings(); });
+        }
         P.configVersion = d.configVersion;
         if (d.targetDelayMs) P.targetDelay = d.targetDelayMs;
         var prev = P.engineMode; P.engineMode = d.engineMode;
@@ -469,7 +472,7 @@
     logEvent('respaldo_inicio', { version: man.version });
     var bv = $('bvideo');
     if (man.ads.length) {
-      blobUrl(man.ads[0].url).then(function (u) { B.urls.push(u); B.loopUrl = u; bv.src = u; bv.loop = true; bv.muted = true; var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ }); })['catch'](function () { /* ignore */ });
+      blobUrl(man.ads[0].url).then(function (u) { B.loopUrl = u; bv.src = u; bv.loop = true; bv.muted = true; var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ }); })['catch'](function () { /* ignore */ });
     }
     nextBackupItem();
   }
@@ -480,7 +483,11 @@
     var man = P.backup.manifest;
     var n = Math.max(1, man.songsBetweenAds || 2);
     var ba = $('baudio'); var bv = $('bvideo');
-    if (man.ads.length && (B.songsSince >= n || !man.songs.length)) {
+    var songsOk = man.songs.length && !man.musicPaused;
+    var adsOk = man.ads.length && !man.adsPaused;
+    if (!songsOk && !adsOk) { B.idle = true; try { ba.pause(); } catch (e) { /* ignore */ } return; } // se reanuda con applyLocalSettings
+    B.idle = false;
+    if (adsOk && (B.songsSince >= n || !songsOk)) {
       // Bloque comercial desde el respaldo: video desde el inicio, con su audio.
       B.songsSince = 0;
       var ad = man.ads[B.adIdx = ((B.adIdx || 0) + 1) % man.ads.length];
@@ -491,7 +498,10 @@
         bv.loop = false; bv.src = u; bv.currentTime = 0; bv.muted = !P.soundOn;
         bv.onended = function () {
           rec.endedAt = serverNow(); rec.completed = true; P.backupPlays.push(rec); lsSet('rmdm-bplays-' + SLUG, P.backupPlays);
-          B.current = null; bv.onended = null; bv.muted = true; bv.loop = true; if (B.loopUrl) bv.src = B.loopUrl;
+          B.current = null; bv.onended = null;
+          var pm = P.backup.manifest;
+          if (pm.musicPaused || !pm.songs.length) { nextBackupItem(); return; } // solo comerciales: uno tras otro, sin volver al fondo
+          bv.muted = true; bv.loop = true; if (B.loopUrl) bv.src = B.loopUrl;
           var p2 = bv.play(); if (p2 && p2['catch']) p2['catch'](function () { /* ignore */ });
           nextBackupItem();
         };
@@ -499,15 +509,24 @@
       })['catch'](function () { B.songsSince = 0; setTimeout(nextBackupItem, 1000); });
       return;
     }
-    if (!man.songs.length) { setTimeout(nextBackupItem, 5000); return; }
     var song = man.songs[B.songIdx % man.songs.length];
     B.songIdx++;
     blobUrl(song.url).then(function (u) {
       B.urls.push(u);
-      ba.src = u; ba.onended = function () { B.songsSince++; nextBackupItem(); };
+      ba.src = u; B.songPlaying = true; ba.onended = function () { B.songPlaying = false; B.songsSince++; nextBackupItem(); };
       var p = ba.play(); if (p && p['catch']) p.then(function () { if (!P.soundOn) { P.soundOn = true; $('unmute').className = 'screen hidden'; } }, function () { askForSound(); });
     })['catch'](function () { setTimeout(nextBackupItem, 1000); });
     while (B.urls.length > 6) { try { URL.revokeObjectURL(B.urls.shift()); } catch (e) { /* ignore */ } }
+  }
+
+  // Aplica de inmediato "Pausar la música" / "Pausar publicidad" del panel en modo local.
+  function applyLocalSettings() {
+    var man = P.backup.manifest; if (!P.backup.active || !man) return;
+    var ba = $('baudio');
+    if (man.musicPaused && B.songPlaying) {
+      B.songPlaying = false; ba.onended = null; try { ba.pause(); } catch (e) { /* ignore */ }
+      B.songsSince = 99; nextBackupItem();
+    } else if (B.idle) { nextBackupItem(); }
   }
 
   function startLocal() {
@@ -567,7 +586,7 @@
   // El respaldo se descarga cuando la señal ya está estable, y se revisa cada 30 minutos.
   (function scheduleBackup() {
     if (!P.cfg) { setTimeout(scheduleBackup, 2000); return; }
-    if (LOCAL) { setInterval(downloadBackup, 10 * 60 * 1000); return; } // revisa comerciales nuevos cada 10 min
+    if (LOCAL) { setInterval(function () { downloadBackup(applyLocalSettings); }, 10 * 60 * 1000); return; } // revisa comerciales nuevos cada 10 min
     setTimeout(downloadBackup, ((P.cfg.player && P.cfg.player.backupDownloadDelaySeconds) || 60) * 1000);
     setInterval(downloadBackup, 30 * 60 * 1000);
   })();
