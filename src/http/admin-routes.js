@@ -251,7 +251,7 @@ export function registerAdminRoutes(router, app) {
 
   // ---- comerciales
   router.get('/api/admin/ads', auth, (req, res, ctx) => {
-    const q = ctx.query; const where = []; const args = [];
+    const q = ctx.query; const where = ['a.archived = 0']; const args = [];
     if (q.get('q')) { where.push('(a.name LIKE ? OR adv.name LIKE ?)'); args.push(`%${q.get('q')}%`, `%${q.get('q')}%`); }
     if (q.get('advertiserId')) { where.push('a.advertiser_id = ?'); args.push(Number(q.get('advertiserId'))); }
     if (q.get('from')) { where.push('a.created_at >= ?'); args.push(localDateTime(`${q.get('from')}T00:00`, tz, 'Desde')); }
@@ -366,13 +366,25 @@ export function registerAdminRoutes(router, app) {
     const a = loadAd(id);
     const plays = db.get('SELECT COUNT(*) AS n FROM ad_plays WHERE ad_id = ?', id).n;
     const used = db.get('SELECT COUNT(*) AS n FROM program_items WHERE (media_id = ? AND kind = \'ad\') OR loop_ad_id = ?', id, id).n;
-    if (plays || used) throw new HttpError(409, 'Este comercial tiene historial de emisión: no se borra para conservar los reportes. Desactívelo en su lugar.');
     if (a.status === 'procesando') throw new HttpError(409, 'Espere a que termine la validación antes de borrarlo.');
+    const removeFiles = () => {
+      fs.rmSync(library.adDir(id), { recursive: true, force: true });
+      app.persist?.enabled && app.persist.remove(['normalized.mp4', 'thumb.jpg', 'backup.mp4'].map((n) => `media/ads/${id}/${n}`));
+    };
+    if (plays || used) {
+      // Con historial: se elimina del panel y se borran sus archivos, pero se conserva el registro para los reportes.
+      if (a.active) throw new HttpError(409, 'Primero desactive el comercial y luego elimínelo.');
+      const pending = db.get("SELECT COUNT(*) AS n FROM program_items WHERE ((media_id = ? AND kind = 'ad') OR loop_ad_id = ?) AND status IN ('preparando','listo','al_aire')", id, id).n;
+      if (pending || (engine.current && (engine.current.mediaId === id && engine.current.kind === 'ad'))) throw new HttpError(409, 'El comercial todavía está en la programación en curso. Intente de nuevo en unos minutos.');
+      db.run('UPDATE ads SET archived = 1, active = 0, activate_on_ready = 0, updated_at = ? WHERE id = ?', Date.now(), id);
+      removeFiles();
+      changed(ctx, 'eliminar_comercial', 'ad', id, { name: a.name });
+      return json(res, 200, { ok: true, message: 'Comercial eliminado. Sus reportes se conservan.' });
+    }
     db.run('DELETE FROM ads WHERE id = ?', id);
-    fs.rmSync(library.adDir(id), { recursive: true, force: true });
-    app.persist?.enabled && app.persist.remove(['normalized.mp4', 'thumb.jpg', 'backup.mp4'].map((n) => `media/ads/${id}/${n}`));
+    removeFiles();
     changed(ctx, 'borrar_comercial_sin_historial', 'ad', id, { name: a.name });
-    json(res, 200, { ok: true });
+    json(res, 200, { ok: true, message: 'Comercial borrado.' });
   });
 
   router.get('/api/admin/ads/:id/history', auth, (req, res, ctx) => {

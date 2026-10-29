@@ -456,7 +456,7 @@ RENDER.comerciales = async (el) => {
           <button class="btn sm" data-a="edit" data-id="${a.id}">Editar</button>
           ${a.status === 'listo' ? `<button class="btn sm" data-a="view" data-id="${a.id}">Ver</button><button class="btn sm" data-a="replace" data-id="${a.id}">Reemplazar</button>` : ''}
           <button class="btn sm" data-a="hist" data-id="${a.id}">Historial</button>
-          ${a.plays === 0 && a.status !== 'procesando' && a.state !== 'al_aire' ? `<button class="btn sm ghost-danger" data-a="del" data-id="${a.id}">Borrar</button>` : ''}
+          ${a.status !== 'procesando' && a.state !== 'al_aire' && !a.active ? `<button class="btn sm ghost-danger" data-a="del" data-id="${a.id}">Eliminar</button>` : ''}
         </div></td></tr>`).join('') || '<tr><td colspan="9" class="muted">No hay comerciales.</td></tr>'}</tbody></table></div>`;
     if (!filtered) makeSortable($('#adbody', el), async (ids) => { try { const r = await api('POST', '/api/admin/ads/reorder', { ids }); toast(r.appliedToNext ? 'Orden guardado. Ya aplica al siguiente bloque.' : 'Orden guardado.'); list(); } catch (e) { fail(e); } });
     $$('[data-a]', el).forEach((b) => b.addEventListener('click', () => adAction(b.dataset.a, Number(b.dataset.id), d.ads, list)));
@@ -526,8 +526,8 @@ async function adAction(act, id, ads, reload) {
       return;
     }
     if (act === 'del') {
-      if (!(await confirmDialog('Borrar comercial', `Se borrará «${esc(a.name)}» y sus archivos. Solo es posible porque nunca se ha emitido.`, { confirmText: 'Borrar', danger: true }))) return;
-      await api('DELETE', `/api/admin/ads/${id}`); toast('Comercial borrado.');
+      if (!(await confirmDialog('Eliminar comercial', `Se eliminará «${esc(a.name)}» y sus archivos. Si ya se emitió, sus reportes se conservan.`, { confirmText: 'Eliminar', danger: true }))) return;
+      const r = await api('DELETE', `/api/admin/ads/${id}`); toast(r.message || 'Comercial eliminado.');
     }
   } catch (e) { fail(e); }
   reload();

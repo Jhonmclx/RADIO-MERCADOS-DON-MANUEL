@@ -83,7 +83,7 @@ export class Persist {
   async restoreMedia(db) {
     if (!this.enabled) return;
     const items = [
-      ...db.all("SELECT id FROM ads WHERE status = 'listo'").map((r) => ['ad', r.id]),
+      ...db.all("SELECT id FROM ads WHERE status = 'listo' AND archived = 0").map((r) => ['ad', r.id]),
       ...db.all("SELECT id FROM songs WHERE status = 'listo' AND archived = 0").map((r) => ['song', r.id]),
     ];
     let n = 0; let missing = 0;

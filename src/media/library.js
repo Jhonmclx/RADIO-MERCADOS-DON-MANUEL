@@ -96,7 +96,7 @@ export class MediaLibrary extends EventEmitter {
     const dir = this.adDir(id);
     fs.mkdirSync(dir, { recursive: true });
     fs.renameSync(tmp, path.join(dir, `original${ext}`));
-    const dup = this.db.get("SELECT id, name FROM ads WHERE original_sha256 = ? AND id <> ? AND status <> 'rechazado'", sha256, id);
+    const dup = this.db.get("SELECT id, name FROM ads WHERE original_sha256 = ? AND id <> ? AND status <> 'rechazado' AND archived = 0", sha256, id);
     if (dup) this.db.run('UPDATE ads SET warnings = ? WHERE id = ?', `Este archivo es idéntico al comercial #${dup.id} (${dup.name}).`, id);
     this._enqueue('ad', id);
     return id;
