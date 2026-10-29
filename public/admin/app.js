@@ -90,7 +90,7 @@ const LABEL = {
   connection: { conectada: ['Conectada', 'ok'], desconectada: ['Desconectada', 'err'], desconocido: ['Sin datos', 'off'], deshabilitada: ['Deshabilitada', 'off'] },
   player: {
     reproduciendo: ['Reproduciendo', 'ok'], cargando: ['Cargando señal', 'info'], bloqueado_autoplay: ['Sonido bloqueado: pulse OK en el TV', 'warn'],
-    sin_senal: ['Sin señal', 'err'], respaldo: ['Respaldo local (sin señal central)', 'warn'], modo_local: ['Modo local (descargado)', 'ok'], reconectando: ['Reconectando', 'warn'], error: ['Error', 'err'],
+    sin_senal: ['Sin señal', 'err'], respaldo: ['Respaldo local (sin señal central)', 'warn'], modo_local: ['En vivo', 'ok'], reconectando: ['Reconectando', 'warn'], error: ['Error', 'err'],
     en_espera: ['Pantalla de espera', 'info'], pausado: ['Pausado en el TV', 'warn'], sin_datos_recientes: ['Estado desconocido', 'off'], nunca_conectada: ['Nunca conectada', 'off'], desconocido: ['Estado desconocido', 'off'],
   },
   adState: { al_aire: ['Al aire', 'live'], en_rotacion: ['En rotación', 'ok'], inactivo: ['Inactivo', 'off'], vencido: ['Vencido', 'warn'], programado: ['Vigencia futura', 'info'],
