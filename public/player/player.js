@@ -467,7 +467,7 @@
     var man = P.backup.manifest;
     destroyLive();
     P.backup.active = true;
-    setState('respaldo');
+    setState(LOCAL ? 'modo_local' : 'respaldo');
     hideWait();
     $('backup').className = '';
     logEvent('respaldo_inicio', { version: man.version });

@@ -7,7 +7,7 @@ import { HttpError, json, readJson, sendFile, safeJoin } from './core.js';
 import { securityHeaders } from './security.js';
 
 const SLUG = /^[a-z0-9][a-z0-9-]{0,40}$/;
-const SITE_STATES = new Set(['reproduciendo', 'cargando', 'bloqueado_autoplay', 'sin_senal', 'respaldo', 'reconectando', 'error', 'en_espera', 'pausado']);
+const SITE_STATES = new Set(['reproduciendo', 'cargando', 'bloqueado_autoplay', 'sin_senal', 'respaldo', 'modo_local', 'reconectando', 'error', 'en_espera', 'pausado']);
 const EVENT_TYPES = new Set(['desconexion', 'reconexion', 'error', 'respaldo_inicio', 'respaldo_fin', 'autoplay_bloqueado', 'sonido_activado',
   'retraso_excesivo', 'resincronizacion', 'recarga', 'senal_detenida', 'respaldo_descargado', 'respaldo_no_disponible', 'inicio']);
 
