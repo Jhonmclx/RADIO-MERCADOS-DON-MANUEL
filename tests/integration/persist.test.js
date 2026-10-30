@@ -22,6 +22,10 @@ function mockStorage(port, key) {
     const m = /^\/storage\/v1\/object\/([^/]+)\/(.+)$/.exec(u.pathname);
     if (m && req.method === 'POST') { objects.set(`${m[1]}/${decodeURIComponent(m[2])}`, body); res.writeHead(200); res.end('{}'); return; }
     if (m && req.method === 'GET') { const o = objects.get(`${m[1]}/${decodeURIComponent(m[2])}`); if (!o) { res.writeHead(400); res.end('{"error":"not_found"}'); return; } res.writeHead(200); res.end(o); return; }
+    if (req.method === 'DELETE' && /^\/storage\/v1\/object\/([^/]+)$/.test(u.pathname)) {
+      const b = u.pathname.split('/').pop(); for (const p of JSON.parse(body).prefixes || []) objects.delete(`${b}/${p}`);
+      res.writeHead(200); res.end('[]'); return;
+    }
     res.writeHead(404); res.end();
   });
   return new Promise((r) => srv.listen(port, '127.0.0.1', () => r({ srv, objects, buckets })));
@@ -59,4 +63,23 @@ test('reinicio sin disco: música, comerciales, ajustes y contraseña se recuper
   await waitFor(async () => (await admin.get('/api/admin/logs?type=asrun')).data.items.some((i) => i.kind === 'song' && i.status === 'emitido'), { timeout: 90_000, label: 'canción emitida tras recuperar' });
   const st = (await admin.get('/api/admin/dashboard')).data.storage;
   assert.equal(st.enabled, true); assert.equal(st.restored, true);
+});
+
+test('reinicio a mitad del procesamiento: el comercial se recupera y se procesa solo', { timeout: 5 * 60_000 }, async (t) => {
+  const key = 'clave-secreta-de-prueba';
+  const mport = await freePort();
+  const mock = await mockStorage(mport, key);
+  const env = { SUPABASE_URL: `http://127.0.0.1:${mport}`, SUPABASE_SERVICE_KEY: key };
+  let srv = await startServer({ dataDir: tmpDir('persist-c'), env });
+  t.after(async () => { await srv.stop(); mock.srv.close(); });
+  let admin = new AdminClient(srv.url); await admin.login();
+  const ad = await admin.upload('ad', FIX.ad1, { name: 'Interrumpido' });
+  await waitFor(async () => mock.objects.has(`radio-mercado/pending/ad/${ad.data.id}/original.bin`), { label: 'copia temporal guardada' });
+  const before = (await admin.get('/api/admin/ads')).data.ads.find((a) => a.id === ad.data.id)?.status;
+  console.log('# estado al reiniciar:', before);
+  await srv.stop(); // reinicio antes de terminar
+  srv = await startServer({ dataDir: tmpDir('persist-d'), env });
+  admin = new AdminClient(srv.url); await admin.login();
+  await waitFor(async () => (await admin.get('/api/admin/ads')).data.ads.find((a) => a.id === ad.data.id)?.status === 'listo', { timeout: 120_000, label: 'procesado tras el reinicio' });
+  await waitFor(async () => !mock.objects.has(`radio-mercado/pending/ad/${ad.data.id}/original.bin`), { label: 'copia temporal borrada' });
 });

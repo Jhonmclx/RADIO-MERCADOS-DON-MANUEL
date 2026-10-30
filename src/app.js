@@ -59,7 +59,8 @@ export async function createApp(cfg, { logToConsole = true } = {}) {
   const origAudit = db.audit.bind(db);
   db.audit = (...a) => { origAudit(...a); if (persist.enabled) { clearTimeout(snapTimer); snapTimer = setTimeout(() => persist.snapshot(db), 4000); } };
   await engine.init();
-  library.resumePending();
+  library.persist = persist.enabled ? persist : null;
+  await library.resumePending();
   if (process.env.DEMO_SEED === 'true') seedDemo({ cfg, db, library, log });
 
   const router = new Router();

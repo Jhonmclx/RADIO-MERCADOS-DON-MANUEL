@@ -40,9 +40,42 @@ export class MediaLibrary extends EventEmitter {
   songFile(id) { return path.join(this.songDir(id), 'normalized.m4a'); }
 
   /** Recupera trabajos interrumpidos por un reinicio (archivos que quedaron "procesando"). */
-  resumePending() {
-    for (const a of this.db.all("SELECT id FROM ads WHERE status = 'procesando'")) this._enqueue('ad', a.id);
-    for (const s of this.db.all("SELECT id FROM songs WHERE status = 'procesando'")) this._enqueue('song', s.id);
+  async resumePending() {
+    const jobs = [
+      ...this.db.all("SELECT id FROM ads WHERE status = 'procesando'").map((r) => ['ad', r.id]),
+      ...this.db.all("SELECT id FROM songs WHERE status = 'procesando'").map((r) => ['song', r.id]),
+    ];
+    for (const [kind, id] of jobs) {
+      // Si el servidor se reinició a mitad del proceso, el archivo original se recupera de la copia temporal guardada
+      // en el almacenamiento permanente y el procesamiento empieza de nuevo solo.
+      const dir = kind === 'ad' ? this.adDir(id) : this.songDir(id);
+      if (this.persist?.enabled && !(fs.existsSync(dir) && this._original(dir))) {
+        try {
+          const ok = await this.persist.download(this._pendingRemote(kind, id), path.join(dir, 'original.bin'));
+          if (ok) this.log('info', `Se recuperó el archivo de ${kind === 'ad' ? 'comercial' : 'canción'} #${id} y se procesa de nuevo.`);
+        } catch (e) { this.log('warn', `No se pudo recuperar el archivo #${id}`, { error: e.message }); }
+      }
+      this._enqueue(kind, id);
+    }
+  }
+
+  _pendingRemote(kind, id) { return `pending/${kind}/${id}/original.bin`; }
+
+  /** Guarda una copia temporal del original hasta terminar de procesarlo (sobrevive a reinicios del servidor). */
+  _savePending(kind, id, file) {
+    if (!this.persist?.enabled) return;
+    this.pendingSaves ??= new Map();
+    const p = this.persist.upload(file, this._pendingRemote(kind, id))
+      .catch((e) => this.log('warn', `No se guardó la copia temporal del archivo #${id}`, { error: e.message }));
+    this.pendingSaves.set(`${kind}:${id}`, p);
+  }
+
+  async _dropPending(kind, id) {
+    if (!this.persist?.enabled) return;
+    const key = `${kind}:${id}`;
+    await this.pendingSaves?.get(key);
+    this.pendingSaves?.delete(key);
+    await this.persist.remove([this._pendingRemote(kind, id)]);
   }
 
   /**
@@ -96,6 +129,7 @@ export class MediaLibrary extends EventEmitter {
     const dir = this.adDir(id);
     fs.mkdirSync(dir, { recursive: true });
     fs.renameSync(tmp, path.join(dir, `original${ext}`));
+    this._savePending('ad', id, path.join(dir, `original${ext}`));
     const dup = this.db.get("SELECT id, name FROM ads WHERE original_sha256 = ? AND id <> ? AND status <> 'rechazado' AND archived = 0", sha256, id);
     if (dup) this.db.run('UPDATE ads SET warnings = ? WHERE id = ?', `Este archivo es idéntico al comercial #${dup.id} (${dup.name}).`, id);
     this._enqueue('ad', id);
@@ -111,6 +145,7 @@ export class MediaLibrary extends EventEmitter {
     const dir = this.songDir(id);
     fs.mkdirSync(dir, { recursive: true });
     fs.renameSync(tmp, path.join(dir, `original${ext}`));
+    this._savePending('song', id, path.join(dir, `original${ext}`));
     this._enqueue('song', id);
     return id;
   }
@@ -147,6 +182,8 @@ export class MediaLibrary extends EventEmitter {
         } catch { /* ignore */ }
       }
     } finally {
+      const row = this.db.get(`SELECT status FROM ${job.kind === 'ad' ? 'ads' : 'songs'} WHERE id = ?`, job.id);
+      if (!row || row.status !== 'procesando') this._dropPending(job.kind, job.id).catch(() => {});
       this.busy = false;
       setImmediate(() => this._pump());
     }
