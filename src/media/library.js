@@ -135,6 +135,17 @@ export class MediaLibrary extends EventEmitter {
       else await this._processSong(job.id);
     } catch (e) {
       this.log('error', `Error inesperado procesando ${job.kind} #${job.id}`, { error: e.message });
+      // Si el archivo original se perdió (p. ej. el servidor se reinició mientras procesaba), se marca como rechazado
+      // para que el administrador pueda eliminarlo y subirlo de nuevo, en vez de quedar "procesando" para siempre.
+      if (e.code === 'ENOENT') {
+        const table = job.kind === 'ad' ? 'ads' : 'songs';
+        const extra = job.kind === 'ad' ? ', active = 0' : '';
+        try {
+          this.db.run(`UPDATE ${table} SET status = 'rechazado', error = ?${extra}, updated_at = ? WHERE id = ? AND status = 'procesando'`,
+            'El archivo se perdió porque el servidor se reinició mientras se procesaba. Elimínelo y súbalo de nuevo.', Date.now(), job.id);
+          this.emit('changed', { kind: job.kind, id: job.id, status: 'rechazado' });
+        } catch { /* ignore */ }
+      }
     } finally {
       this.busy = false;
       setImmediate(() => this._pump());

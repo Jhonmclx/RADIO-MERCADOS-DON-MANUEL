@@ -73,9 +73,44 @@ function scaleFilter(w, h, fps) {
  * fotogramas clave cada segmento HLS, volumen normalizado). Así todas las piezas de la señal comparten
  * parámetros y los televisores no tienen que reconfigurar decodificadores entre canciones y comerciales.
  */
+/**
+ * ¿El video ya viene en el formato de emisión (H.264, resolución y fps exactos, un cuadro clave cada segmento)?
+ * En ese caso se copia el video sin recodificar: en el servidor gratis recodificar 720p tarda ~8 veces la duración.
+ */
+export async function videoAlreadyNormalized(cfg, input) {
+  try {
+    const { width, height, fps, bitrateK } = cfg.video;
+    const { stdout } = await runProcess(cfg.ffprobe, ['-v', 'error', '-select_streams', 'v:0', '-print_format', 'json',
+      '-show_entries', 'stream=codec_name,width,height,avg_frame_rate,pix_fmt,bit_rate,duration:format=duration', input], { timeoutMs: 60_000 });
+    const j = JSON.parse(stdout.toString('utf8')); const v = j.streams?.[0];
+    if (!v || v.codec_name !== 'h264' || v.width !== width || v.height !== height || v.pix_fmt !== 'yuv420p') return false;
+    const [n, d] = String(v.avg_frame_rate).split('/').map(Number);
+    if (!d || Math.abs(n / d - fps) > 0.01) return false;
+    if (Number(v.bit_rate) > bitrateK * 1000 * 1.5) return false;
+    const seg = cfg.hls.segmentSeconds;
+    const kf = await runProcess(cfg.ffprobe, ['-v', 'error', '-skip_frame', 'nokey', '-select_streams', 'v:0', '-show_entries', 'frame=pts_time',
+      '-of', 'csv=p=0', input], { timeoutMs: 10 * 60_000 });
+    const t = (kf.stdout.toString('utf8').match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    const dur = Number(v.duration || j.format?.duration || 0);
+    if (t.length < 2 || Math.abs(t[0]) > 0.05) return false;
+    for (let i = 1; i < t.length; i++) if (Math.abs(t[i] - t[i - 1] - seg) > 0.05) return false;
+    return dur - t[t.length - 1] <= seg + 0.05;
+  } catch { return false; }
+}
+
 export async function normalizeAd(cfg, input, output, { hasAudio }) {
   const { width, height, fps } = cfg.video;
   const args = ['-y', '-hide_banner', '-loglevel', 'error', '-i', input];
+  if (await videoAlreadyNormalized(cfg, input)) {
+    if (!hasAudio) args.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
+    args.push('-map', '0:v:0', '-map', hasAudio ? '0:a:0' : '1:a:0', '-c:v', 'copy');
+    if (hasAudio) args.push('-af', 'loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000');
+    args.push(...audioArgs(cfg));
+    if (!hasAudio) args.push('-shortest');
+    args.push('-movflags', '+faststart', output);
+    await runProcess(cfg.ffmpeg, args);
+    return { copied: true };
+  }
   if (!hasAudio) args.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
   args.push('-map', '0:v:0', '-map', hasAudio ? '0:a:0' : '1:a:0');
   args.push('-vf', scaleFilter(width, height, fps));
