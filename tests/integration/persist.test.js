@@ -48,7 +48,7 @@ test('reinicio sin disco: música, comerciales, ajustes y contraseña se recuper
   assert.equal((await admin.post('/api/auth/password', { current: 'ClavePrueba2026', next: 'NuevaClave2026x' })).status, 200);
   await waitFor(async () => [...mock.objects.keys()].some((k) => k.endsWith('music/1/normalized.m4a')) && [...mock.objects.keys()].some((k) => k.endsWith('ads/1/normalized.mp4')), { label: 'archivos guardados' });
   await srv.stop(); // Render envía SIGTERM antes de apagar
-  assert.ok(mock.objects.has('radio-mercado/db/radio.sqlite'));
+  assert.ok(mock.objects.has('radio-mercado/db/radio.sqlite.gz'));
 
   // Nuevo servidor con un disco VACÍO (como Render después de dormirse o de una actualización).
   srv = await startServer({ dataDir: tmpDir('persist-b'), env: { ...env, ADMIN_PASSWORD: 'OtraClave999x' } });

@@ -5,6 +5,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import zlib from 'node:zlib';
+import { Readable } from 'node:stream';
 
 const MIME = { '.mp4': 'video/mp4', '.m4a': 'audio/mp4', '.jpg': 'image/jpeg', '.sqlite': 'application/octet-stream' };
 
@@ -40,7 +42,8 @@ export class Persist {
     if (!r.ok) throw new Error(`Error ${r.status} al descargar ${remote}`);
     fs.mkdirSync(path.dirname(local), { recursive: true });
     const tmp = `${local}.dl-${crypto.randomBytes(3).toString('hex')}`;
-    fs.writeFileSync(tmp, Buffer.from(await r.arrayBuffer()));
+    const { pipeline } = await import('node:stream/promises');
+    await pipeline(Readable.fromWeb(r.body), fs.createWriteStream(tmp));
     fs.renameSync(tmp, local);
     return true;
   }
@@ -48,9 +51,17 @@ export class Persist {
   async upload(local, remote) {
     const st = fs.statSync(local);
     if (st.size > this.maxBytes) throw new Error(`${path.basename(local)} pesa ${Math.round(st.size / 1048576)} MB y supera el límite de ${Math.round(this.maxBytes / 1048576)} MB por archivo de Supabase gratis.`);
-    const r = await fetch(this.objUrl(remote), { method: 'POST',
-      headers: this.headers({ 'Content-Type': MIME[path.extname(local)] || 'application/octet-stream', 'x-upsert': 'true', 'cache-control': '3600' }),
-      body: fs.readFileSync(local) });
+    // Se envía en flujo (sin cargar el archivo completo en memoria) y de a un archivo a la vez:
+    // el servidor gratis tiene 512 MB y varios comerciales de 40 MB en memoria lo hacían reiniciarse.
+    const prev = this.uploadChain || Promise.resolve();
+    let release; this.uploadChain = new Promise((r) => { release = r; });
+    await prev;
+    let r;
+    try {
+      r = await fetch(this.objUrl(remote), { method: 'POST', duplex: 'half',
+        headers: this.headers({ 'Content-Type': MIME[path.extname(local)] || 'application/octet-stream', 'Content-Length': String(st.size), 'x-upsert': 'true', 'cache-control': '3600' }),
+        body: Readable.toWeb(fs.createReadStream(local)) });
+    } finally { release(); }
     if (!r.ok) throw new Error(`Error ${r.status} al guardar ${remote}: ${(await r.text()).slice(0, 200)}`);
     this.status.uploads += 1;
   }
@@ -63,7 +74,14 @@ export class Persist {
   async restoreDatabase() {
     if (!this.enabled) return false;
     await this.ensureBucket();
-    const ok = await this.download('db/radio.sqlite', this.cfg.dbFile);
+    // La copia se guarda comprimida (gasta ~4 veces menos datos); se acepta también la copia antigua sin comprimir.
+    let ok = await this.download('db/radio.sqlite.gz', this.cfg.dbFile + '.gz');
+    if (ok) {
+      fs.writeFileSync(this.cfg.dbFile, zlib.gunzipSync(fs.readFileSync(this.cfg.dbFile + '.gz')));
+      fs.rmSync(this.cfg.dbFile + '.gz', { force: true });
+    } else {
+      ok = await this.download('db/radio.sqlite', this.cfg.dbFile);
+    }
     if (ok) {
       for (const s of ['-wal', '-shm']) fs.rmSync(this.cfg.dbFile + s, { force: true });
       this.log('info', 'Base de datos recuperada del almacenamiento permanente.');
@@ -124,7 +142,8 @@ export class Persist {
       db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
       const hash = crypto.createHash('sha256').update(fs.readFileSync(tmp)).digest('hex');
       if (force || hash !== this.lastDbHash) {
-        await this.upload(tmp, 'db/radio.sqlite');
+        fs.writeFileSync(tmp + '.gz', zlib.gzipSync(fs.readFileSync(tmp), { level: 9 }));
+        try { await this.upload(tmp + '.gz', 'db/radio.sqlite.gz'); } finally { fs.rmSync(tmp + '.gz', { force: true }); }
         this.lastDbHash = hash;
         this.status.lastSnapshotAt = Date.now();
       }

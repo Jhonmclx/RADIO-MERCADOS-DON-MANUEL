@@ -65,7 +65,9 @@ export async function createApp(cfg, { logToConsole = true } = {}) {
 
   const router = new Router();
   const app = { cfg, db, engine, library, reports, sessions, log, persist };
-  const snapInterval = persist.enabled ? setInterval(() => persist.snapshot(db), 3 * 60_000) : null;
+  // Copia periódica cada hora (los cambios del administrador se guardan al momento). Cada copia sube datos y Render gratis
+  // cobra el tráfico de salida: cada 3 minutos llegaba a ~1,8 GB al día.
+  const snapInterval = persist.enabled ? setInterval(() => persist.snapshot(db), 60 * 60_000) : null;
   if (persist.enabled) setTimeout(() => persist.snapshot(db), 15_000);
   registerAdminRoutes(router, app);
   registerPublicRoutes(router, app);
