@@ -471,10 +471,7 @@
     hideWait();
     $('backup').className = '';
     logEvent('respaldo_inicio', { version: man.version });
-    var bv = $('bvideo');
-    if (man.ads.length) {
-      blobUrl(man.ads[0].url).then(function (u) { B.loopUrl = u; bv.src = u; bv.loop = true; bv.muted = true; var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ }); })['catch'](function () { /* ignore */ });
-    }
+    refreshLoop();
     nextBackupItem();
   }
 
@@ -520,15 +517,37 @@
     while (B.urls.length > 6) { try { URL.revokeObjectURL(B.urls.shift()); } catch (e) { /* ignore */ } }
   }
 
+  // Video de fondo (comercial en silencio mientras suena la música). Se renueva si ese comercial ya no está en la
+  // programación (eliminado o reemplazado) o si al iniciar no había comerciales.
+  function refreshLoop() {
+    var man = P.backup.manifest; if (!P.backup.active || !man || !man.ads.length) return;
+    var ids = man.ads.map(function (a) { return a.id; });
+    if (B.loopUrl && ids.indexOf(B.loopId) >= 0) return;
+    var ad = man.ads[0];
+    blobUrl(ad.url).then(function (u) {
+      var old = B.loopUrl; B.loopUrl = u; B.loopId = ad.id;
+      if (!B.current) { var bv = $('bvideo'); bv.src = u; bv.loop = true; bv.muted = true; var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ }); }
+      if (old) setTimeout(function () { try { URL.revokeObjectURL(old); } catch (e) { /* ignore */ } }, 5000);
+    })['catch'](function () { /* ignore */ });
+  }
+
   // Aplica de inmediato "Pausar la música" / "Pausar publicidad" del panel en modo local.
   function applyLocalSettings() {
     var man = P.backup.manifest; if (!P.backup.active || !man) return;
+    refreshLoop();
     var ba = $('baudio');
     if (man.musicPaused && B.songPlaying) {
       B.songPlaying = false; ba.onended = null; try { ba.pause(); } catch (e) { /* ignore */ }
       B.songsSince = 99; nextBackupItem();
     } else if (B.idle) { nextBackupItem(); }
   }
+
+  setInterval(function () {
+    if (!P.backup.active || B.current) return;
+    var bv = $('bvideo');
+    if (!B.loopUrl || bv.error) { B.loopUrl = null; refreshLoop(); }
+    else if (bv.paused) { var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ }); }
+  }, 30000);
 
   function startLocal() {
     var why = backupCapable();
