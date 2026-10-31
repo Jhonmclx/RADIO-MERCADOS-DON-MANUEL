@@ -83,3 +83,31 @@ test('reinicio a mitad del procesamiento: el comercial se recupera y se procesa 
   await waitFor(async () => (await admin.get('/api/admin/ads')).data.ads.find((a) => a.id === ad.data.id)?.status === 'listo', { timeout: 120_000, label: 'procesado tras el reinicio' });
   await waitFor(async () => !mock.objects.has(`radio-mercado/pending/ad/${ad.data.id}/original.bin`), { label: 'copia temporal borrada' });
 });
+
+test('servidor propio (solo-migrar): trae todo de Supabase una vez y después no sube nada', { timeout: 5 * 60_000 }, async (t) => {
+  const key = 'clave-secreta-de-prueba';
+  const mport = await freePort();
+  const mock = await mockStorage(mport, key);
+  const env = { SUPABASE_URL: `http://127.0.0.1:${mport}`, SUPABASE_SERVICE_KEY: key };
+  let srv = await startServer({ dataDir: tmpDir('own-a'), env });
+  let admin = new AdminClient(srv.url); await admin.login();
+  await admin.upload('song', FIX.song1, { title: 'De Render' });
+  await waitFor(async () => [...mock.objects.keys()].some((k) => k.endsWith('normalized.m4a')), { label: 'guardada en Supabase' });
+  await srv.stop();
+
+  const own = tmpDir('own-pc'); const ownEnv = { ...env, SUPABASE_MODE: 'solo-migrar' };
+  srv = await startServer({ dataDir: own, env: ownEnv });
+  t.after(async () => { await srv.stop(); mock.srv.close(); });
+  admin = new AdminClient(srv.url); await admin.login();
+  assert.deepEqual((await admin.get('/api/admin/music')).data.songs.map((s) => [s.title, s.status]), [['De Render', 'listo']], 'migrada');
+  const before = mock.objects.size;
+  await admin.upload('song', FIX.song2, { title: 'Del PC' });
+  await waitFor(async () => (await admin.get('/api/admin/music')).data.songs.filter((s) => s.status === 'listo').length === 2, { label: 'procesada en el PC' });
+  await admin.put('/api/admin/settings', { songsBetweenAds: 4, adsPerBlock: 1, musicShuffle: false });
+  await srv.stop();
+  assert.equal(mock.objects.size, before, 'no subió nada a Supabase');
+  srv = await startServer({ dataDir: own, env: ownEnv });
+  admin = new AdminClient(srv.url); await admin.login();
+  assert.equal((await admin.get('/api/admin/music')).data.songs.length, 2, 'usa su propio disco, no la copia vieja de Supabase');
+  assert.equal((await admin.get('/api/admin/settings')).data.songsBetweenAds, 4);
+});

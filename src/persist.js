@@ -17,9 +17,12 @@ export class Persist {
     this.key = env.SUPABASE_SERVICE_KEY || '';
     this.bucket = env.SUPABASE_BUCKET || 'radio-mercado';
     this.enabled = !!(this.url && this.key);
+    // SUPABASE_MODE=solo-migrar: servidor propio con disco permanente (p. ej. el PC del almacén). Solo trae de Supabase
+    // lo que falte la primera vez y NUNCA sube nada: el espacio deja de depender de Supabase.
+    this.restoreOnly = this.enabled && String(env.SUPABASE_MODE || '').toLowerCase() === 'solo-migrar';
     this.maxBytes = Number(env.SUPABASE_MAX_FILE_MB || 50) * 1024 * 1024;
     this.lastDbHash = null;
-    this.status = { enabled: this.enabled, lastSnapshotAt: null, lastError: null, restored: null, uploads: 0 };
+    this.status = { enabled: this.enabled, restoreOnly: this.restoreOnly, lastSnapshotAt: null, lastError: null, restored: null, uploads: 0 };
   }
 
   headers(extra = {}) { return { Authorization: `Bearer ${this.key}`, apikey: this.key, ...extra }; }
@@ -49,6 +52,7 @@ export class Persist {
   }
 
   async upload(local, remote) {
+    if (this.restoreOnly) return;
     const st = fs.statSync(local);
     if (st.size > this.maxBytes) throw new Error(`${path.basename(local)} pesa ${Math.round(st.size / 1048576)} MB y supera el límite de ${Math.round(this.maxBytes / 1048576)} MB por archivo de Supabase gratis.`);
     // Se envía en flujo (sin cargar el archivo completo en memoria) y de a un archivo a la vez:
@@ -67,12 +71,14 @@ export class Persist {
   }
 
   async remove(prefixes) {
+    if (this.restoreOnly) return;
     await fetch(`${this.url}/storage/v1/object/${this.bucket}`, { method: 'DELETE', headers: this.headers({ 'Content-Type': 'application/json' }), body: JSON.stringify({ prefixes }) }).catch(() => {});
   }
 
   /** Antes de abrir la base de datos: trae la última copia guardada. */
   async restoreDatabase() {
     if (!this.enabled) return false;
+    if (this.restoreOnly && fs.existsSync(this.cfg.dbFile)) { this.status.restored = false; return false; } // ya migrado: se usa el disco local
     await this.ensureBucket();
     // La copia se guarda comprimida (gasta ~4 veces menos datos); se acepta también la copia antigua sin comprimir.
     let ok = await this.download('db/radio.sqlite.gz', this.cfg.dbFile + '.gz');
@@ -135,7 +141,7 @@ export class Persist {
 
   /** Copia consistente de la base de datos; solo se sube si cambió. */
   async snapshot(db, { force = false } = {}) {
-    if (!this.enabled || this.saving) return;
+    if (!this.enabled || this.restoreOnly || this.saving) return;
     this.saving = true;
     const tmp = path.join(this.cfg.tmpDir, `snap-${Date.now()}.sqlite`);
     try {
