@@ -515,7 +515,7 @@
     else { song = man.songs[B.songIdx % man.songs.length]; B.songIdx++; }
     blobUrl(song.url).then(function (u) {
       B.urls.push(u);
-      ba.src = u; B.songPlaying = true; ba.onended = function () { B.songPlaying = false; B.songsSince++; nextBackupItem(); };
+      ba.src = u; B.songPlaying = true; B.nowSong = song; updateNowPlaying(); ba.onended = function () { B.songPlaying = false; B.songsSince++; nextBackupItem(); };
       var p = ba.play(); if (p && p['catch']) p.then(function () { if (!P.soundOn) { P.soundOn = true; $('unmute').className = 'screen hidden'; } }, function () { askForSound(); });
     })['catch'](function () { setTimeout(nextBackupItem, 1000); });
     while (B.urls.length > 6) { try { URL.revokeObjectURL(B.urls.shift()); } catch (e) { /* ignore */ } }
@@ -589,6 +589,18 @@
       if (!midAd && !midSong) { clearInterval(t); flush(function () { location.reload(); }); }
     }, 1000);
   }
+
+  // Si no hay comercial de fondo (o el TV no logra mostrar el video), en vez de pantalla negra se ve
+  // el fondo de la marca con el nombre de la canción.
+  function updateNowPlaying() {
+    var bv = $('bvideo'); var np = $('nowplaying'); if (!np) return;
+    var videoOk = (!!B.current || !!B.loopUrl) && !bv.error && bv.readyState >= 2 && bv.videoWidth > 0;
+    np.className = (P.backup.active && !videoOk) ? 'screen' : 'screen hidden';
+    var s = B.nowSong;
+    $('npTitle').textContent = B.current ? 'Mensaje comercial' : (s ? (s.title || 'Música') : '');
+    $('npArtist').textContent = !B.current && s && s.artist ? s.artist : '';
+  }
+  setInterval(updateNowPlaying, 3000);
 
   function startLocal() {
     var why = backupCapable();

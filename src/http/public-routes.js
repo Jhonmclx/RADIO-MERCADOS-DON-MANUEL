@@ -157,11 +157,11 @@ export function registerPublicRoutes(router, app) {
       });
     }
     const songSql = local
-      ? "SELECT id, normalized_sha256, duration_ms FROM songs WHERE status = 'listo' AND enabled = 1 AND archived = 0 AND normalized_sha256 IS NOT NULL ORDER BY position LIMIT 400"
+      ? "SELECT id, title, artist, normalized_sha256, duration_ms FROM songs WHERE status = 'listo' AND enabled = 1 AND archived = 0 AND normalized_sha256 IS NOT NULL ORDER BY position LIMIT 400"
       : "SELECT id, normalized_sha256, duration_ms FROM songs WHERE status = 'listo' AND enabled = 1 AND backup = 1 AND archived = 0 ORDER BY position LIMIT 60";
     const songBase = local ? '/media/local/song' : '/media/backup/song';
     const songs = db.all(songSql)
-      .map((x) => ({ id: x.id, url: `${songBase}/${x.id}/${x.normalized_sha256.slice(0, 16)}.m4a`, durationMs: x.duration_ms, sha256: x.normalized_sha256, bytes: size(library.songFile(x.id)) }));
+      .map((x) => ({ id: x.id, url: `${songBase}/${x.id}/${x.normalized_sha256.slice(0, 16)}.m4a`, durationMs: x.duration_ms, sha256: x.normalized_sha256, bytes: size(library.songFile(x.id)), title: x.title || null, artist: x.artist || null }));
     const s = db.getSettings();
     const musicPaused = !!s.music_paused; const adsPaused = !!s.ads_paused;
     const shuffle = !!s.music_shuffle;
