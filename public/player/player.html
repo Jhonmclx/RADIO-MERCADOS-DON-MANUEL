@@ -17,6 +17,17 @@
   <div id="backup" class="hidden">
     <video id="bvideo" playsinline webkit-playsinline muted></video>
     <audio id="baudio"></audio>
+    <!-- Pantalla "Ahora suena": se ve cuando no hay comercial de fondo o el video no se puede mostrar -->
+    <div id="nowplaying" class="screen hidden">
+      <video class="wait-bg" autoplay muted loop playsinline webkit-playsinline poster="/static/assets/fondo.jpg"><source src="/static/assets/fondo.mp4" type="video/mp4"></video>
+      <div class="wait-box">
+        <div class="wait-logo"><img src="/static/assets/logo-don-manuel.png" alt="Mercados Don Manuel"></div>
+        <div class="wait-name">RADIO MERCADO</div>
+        <div class="np-label">AHORA SUENA</div>
+        <div id="npTitle" class="wait-msg"></div>
+        <div id="npArtist" class="wait-sub"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Pantalla de espera -->
