@@ -107,6 +107,7 @@
     http('GET', API + '/state?_=' + now(), null, function (err, d) {
       if (err || !d) return cb(err || new Error('respuesta vacía'));
       P.cfg = d; P.targetDelay = d.stream.targetDelayMs; P.seg = d.stream.segmentSeconds;
+      if (!P.playerVersion) P.playerVersion = d.playerVersion;
       P.configVersion = d.configVersion; P.engineMode = d.engine.mode;
       document.title = d.site.name + ' — ' + d.appName;
       cb(null, d);
@@ -352,6 +353,7 @@
         if (LOCAL && P.backup.manifest && d.configVersion != null && d.configVersion !== P.backup.manifest.configVersion && !B.refreshing) {
           B.refreshing = true; downloadBackup(function () { B.refreshing = false; applyLocalSettings(); });
         }
+        if (d.playerVersion && P.playerVersion && d.playerVersion !== P.playerVersion) scheduleSelfUpdate();
         P.configVersion = d.configVersion;
         if (d.targetDelayMs) P.targetDelay = d.targetDelayMs;
         var prev = P.engineMode; P.engineMode = d.engineMode;
@@ -477,6 +479,7 @@
 
   function nextBackupItem() {
     if (!P.backup.active) return;
+    if (B.updatePending && !B.current) { B.songPlaying = false; flush(function () { location.reload(); }); return; } // momento tranquilo para actualizarse
     if (B.returnPending) { stopBackup(); return; }
     var man = P.backup.manifest;
     var n = Math.max(1, man.songsBetweenAds || 2);
@@ -549,6 +552,21 @@
     if (!B.loopUrl || bv.error) { B.loopUrl = null; refreshLoop(); }
     else if (bv.paused) { var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ }); }
   }, 30000);
+
+  // Actualización automática: los televisores solo tienen un control sencillo (sin F5). Cuando el servidor tiene una
+  // versión nueva del reproductor, la página se recarga sola en un momento tranquilo (al terminar una canción,
+  // nunca en medio de un comercial). En modo local la música ya descargada no se vuelve a bajar.
+  function scheduleSelfUpdate() {
+    if (B.updatePending) return;
+    B.updatePending = true;
+    logEvent('actualizacion_reproductor', null);
+    var deadline = now() + 10 * 60 * 1000;
+    var t = setInterval(function () {
+      var midAd = P.backup.active && B.current;
+      var midSong = P.backup.active && B.songPlaying && now() < deadline;
+      if (!midAd && !midSong) { clearInterval(t); flush(function () { location.reload(); }); }
+    }, 1000);
+  }
 
   function startLocal() {
     var why = backupCapable();

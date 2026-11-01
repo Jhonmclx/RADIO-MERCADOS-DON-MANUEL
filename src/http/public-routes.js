@@ -14,6 +14,14 @@ const EVENT_TYPES = new Set(['desconexion', 'reconexion', 'error', 'respaldo_ini
 export function registerPublicRoutes(router, app) {
   const { cfg, db, engine, library } = app;
   const lastSample = new Map();
+  // Huella de la versión del reproductor: si cambia (actualización), los TV se recargan solos.
+  const playerVersion = (() => {
+    const h = crypto.createHash('sha256');
+    for (const f of ['player.js', 'player.html', 'player.css']) {
+      try { h.update(fs.readFileSync(path.join(cfg.root, 'public', 'player', f))); } catch { /* ignore */ }
+    }
+    return h.digest('hex').slice(0, 12);
+  })();
 
   const siteBySlug = (slug) => {
     if (!SLUG.test(slug)) throw new HttpError(404, 'Sede no encontrada.');
@@ -53,6 +61,7 @@ export function registerPublicRoutes(router, app) {
     const st = engine.status();
     json(res, 200, {
       appName: cfg.appName,
+      playerVersion,
       site: { slug: s.slug, name: s.name, enabled: !!s.enabled },
       serverNow: Date.now(),
       engine: { mode: st.mode, onAirKind: st.onAir?.kind || null },
@@ -120,7 +129,7 @@ export function registerPublicRoutes(router, app) {
       }
     }
     const st = engine.status();
-    json(res, 200, { ok: true, accepted, serverNow: now, configVersion: st.configVersion, engineMode: st.mode, targetDelayMs: cfg.hls.targetDelayMs });
+    json(res, 200, { ok: true, accepted, serverNow: now, playerVersion, configVersion: st.configVersion, engineMode: st.mode, targetDelayMs: cfg.hls.targetDelayMs });
   });
 
   const backupAds = () => engine.eligibleAds(Date.now()).filter((a) => {
