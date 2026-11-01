@@ -488,7 +488,7 @@
     if (adsOk && (B.songsSince >= n || !songsOk)) {
       // Bloque comercial desde el respaldo: video desde el inicio, con su audio.
       B.songsSince = 0;
-      var ad = man.ads[B.adIdx = ((B.adIdx || 0) + 1) % man.ads.length];
+      var ad = man.shuffle ? pickFromBag('ads', man.ads) : man.ads[B.adIdx = ((B.adIdx || 0) + 1) % man.ads.length];
       blobUrl(ad.url).then(function (u) {
         B.urls.push(u);
         var rec = { id: uuid(), adId: ad.id, startedAt: serverNow(), endedAt: null, completed: false };
@@ -507,8 +507,9 @@
       })['catch'](function () { B.songsSince = 0; setTimeout(nextBackupItem, 1000); });
       return;
     }
-    var song = man.songs[B.songIdx % man.songs.length];
-    B.songIdx++;
+    var song;
+    if (man.shuffle) song = pickFromBag('songs', man.songs);
+    else { song = man.songs[B.songIdx % man.songs.length]; B.songIdx++; }
     blobUrl(song.url).then(function (u) {
       B.urls.push(u);
       ba.src = u; B.songPlaying = true; ba.onended = function () { B.songPlaying = false; B.songsSince++; nextBackupItem(); };
@@ -561,6 +562,25 @@
       showWait('No se pudo descargar la programación', (P.backup.status || '') + ' — reintentando en 30 s');
       setTimeout(startLocal, 30000);
     });
+  }
+
+  // Orden aleatorio sin repetir: se baraja la lista completa y se recorre; al terminarla se vuelve a barajar,
+  // evitando que el primero de la nueva vuelta sea el mismo que acaba de sonar.
+  B.bags = {};
+  window.RMDM_pick = function (k, l) { return pickFromBag(k, l); };
+  function pickFromBag(kind, list) {
+    var bag = B.bags[kind];
+    var ids = list.map(function (x) { return x.id; });
+    if (bag) bag.queue = bag.queue.filter(function (id) { return ids.indexOf(id) >= 0; }); // quita lo eliminado
+    if (!bag || !bag.queue.length) {
+      var q = ids.slice();
+      for (var i = q.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)); var t = q[i]; q[i] = q[j]; q[j] = t; }
+      if (bag && q.length > 1 && q[0] === bag.last) { var t2 = q[0]; q[0] = q[q.length - 1]; q[q.length - 1] = t2; }
+      bag = B.bags[kind] = { queue: q, last: bag ? bag.last : null };
+    }
+    var id = bag.queue.shift(); bag.last = id;
+    for (var k = 0; k < list.length; k++) if (list[k].id === id) return list[k];
+    return list[0];
   }
 
   function scheduleReturnToLive() {

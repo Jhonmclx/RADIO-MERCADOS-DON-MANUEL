@@ -260,7 +260,7 @@ RENDER.emision = async (el) => {
         <div class="form-grid">
           <label class="f">Canciones entre comerciales<div class="stepper"><button type="button" data-step="-1">−</button><output id="sba">${cfg.songsBetweenAds}</output><button type="button" data-step="1">+</button></div></label>
           <label class="f">Comerciales por bloque<select id="apb">${[1, 2, 3, 4, 5].map((n) => `<option ${n === cfg.adsPerBlock ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-          <label class="check"><input type="checkbox" id="shuf" ${cfg.musicShuffle ? 'checked' : ''}> Música en orden aleatorio</label>
+          <label class="check"><input type="checkbox" id="shuf" ${cfg.musicShuffle ? 'checked' : ''}> Orden aleatorio (música y comerciales)</label>
         </div>
         <div class="btn-row" style="margin-top:14px"><button class="btn primary" id="saveRule">Guardar regla</button><span class="small muted">Versión de configuración actual: v${cfg.configVersion}</span></div>
       </div></div>
