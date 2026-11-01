@@ -571,12 +571,18 @@
   function startLocal() {
     var why = backupCapable();
     if (why) { showWait('Este televisor no permite el modo local', why + '. Use el link sin "?local=1".'); return; }
-    function go() { if (!P.backup.active && P.backup.ready && P.backup.manifest) startBackup(); }
+    function go() {
+      if (!P.backup.active && P.backup.ready && P.backup.manifest) startBackup();
+      if (P.backup.active) hideWait();
+    }
     if (P.backup.ready && P.backup.manifest) go(); // ya descargado antes: arranca de inmediato sin Internet
-    showWait('Descargando música y comerciales…', 'Solo la primera vez');
+    // La pantalla de descarga solo se muestra si todavía no hay nada que reproducir (antes tapaba el video
+    // cuando el TV ya tenía todo guardado: se oía el sonido pero se veía solo el logo).
+    if (!P.backup.active) showWait('Descargando música y comerciales…', 'Solo la primera vez');
     downloadBackup(function (err) {
       if (!err) return go();
       if (P.backup.ready) return go();
+      if (P.backup.active) return;
       showWait('No se pudo descargar la programación', (P.backup.status || '') + ' — reintentando en 30 s');
       setTimeout(startLocal, 30000);
     });

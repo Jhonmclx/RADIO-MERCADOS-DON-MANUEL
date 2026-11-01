@@ -47,6 +47,11 @@ test('modo local: descarga una vez, reproduce canciones y comercial con sonido, 
     await admin.post('/api/admin/engine/action', { action: 'reanudar_musica' });
     await page.evaluate(() => { const v = document.getElementById('bvideo'); v.currentTime = Math.max(0, v.duration - 0.3); });
     await waitFor(async () => (await st()).audio, { timeout: 30_000, label: 'vuelve la música' });
+    // Recargar con todo ya descargado: debe verse el video, no la pantalla del logo
+    await page.reload();
+    await waitFor(async () => page.evaluate(() => window.RMDM.backup.active && !document.getElementById('baudio').paused), { timeout: 60_000, label: 'suena tras recargar' });
+    await page.waitForTimeout(3000);
+    assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('wait')).display), 'none', 'la pantalla del logo no tapa el video');
     // Sin Internet: sigue sonando
     await ctx.setOffline(true);
     await sleep(8000);
