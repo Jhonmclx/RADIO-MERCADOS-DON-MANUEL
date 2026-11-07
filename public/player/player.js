@@ -442,6 +442,17 @@
     })['catch'](function () { /* ignore */ });
   }
 
+  // Video: si el service worker controla la página se usa la dirección normal (/media/...), que él entrega desde
+  // la copia guardada; algunos navegadores de TV no reproducen video desde direcciones blob:. Si no, se usa blob.
+  function videoUrl(url) {
+    var sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!sw) return blobUrl(url);
+    return caches.open(BACKUP_CACHE).then(function (c) { return c.match(url); }).then(function (r) {
+      if (!r) throw new Error('no está en el respaldo');
+      return location.origin + url;
+    });
+  }
+
   function blobUrl(url) {
     return caches.open(BACKUP_CACHE).then(function (c) { return c.match(url); }).then(function (r) {
       if (!r) throw new Error('no está en el respaldo');
@@ -492,7 +503,7 @@
       // Bloque comercial desde el respaldo: video desde el inicio, con su audio.
       B.songsSince = 0;
       var ad = man.shuffle ? pickFromBag('ads', man.ads) : man.ads[B.adIdx = ((B.adIdx || 0) + 1) % man.ads.length];
-      blobUrl(ad.url).then(function (u) {
+      videoUrl(ad.url).then(function (u) {
         B.urls.push(u);
         var rec = { id: uuid(), adId: ad.id, startedAt: serverNow(), endedAt: null, completed: false };
         B.current = rec;
@@ -506,7 +517,7 @@
           bv.muted = true; B.loopId = ad.id; nextLoop();
           nextBackupItem();
         };
-        var p = bv.play(); if (p && p['catch']) p['catch'](function () { nextBackupItem(); });
+        var p = bv.play(); if (p && p['catch']) p['catch'](function (er) { videoProblem('no se pudo iniciar el comercial', er); nextBackupItem(); });
       })['catch'](function () { B.songsSince = 0; setTimeout(nextBackupItem, 1000); });
       return;
     }
@@ -520,6 +531,17 @@
     })['catch'](function () { setTimeout(nextBackupItem, 1000); });
     while (B.urls.length > 6) { try { URL.revokeObjectURL(B.urls.shift()); } catch (e) { /* ignore */ } }
   }
+
+  // Registra en el panel (Eventos recientes) por qué el TV no muestra el video, para poder diagnosticarlo.
+  var lastVideoProblem = 0;
+  function videoProblem(what, err) {
+    if (now() - lastVideoProblem < 60000) return;
+    lastVideoProblem = now();
+    var bv = $('bvideo');
+    logEvent('video_no_visible', { motivo: what, error: err && (err.name || err.message) || null,
+      codigo: bv.error ? bv.error.code : null, origen: String(bv.currentSrc || '').slice(0, 12), sw: !!(navigator.serviceWorker && navigator.serviceWorker.controller) });
+  }
+  $('bvideo').addEventListener('error', function () { videoProblem('error del reproductor de video'); });
 
   // Video de fondo (comerciales en silencio mientras suena la música). Van ROTANDO: cuando termina uno, empieza
   // el siguiente de la lista (antes se repetía siempre el primero). Con un solo comercial, ese se repite en ciclo.
@@ -543,14 +565,14 @@
 
   function showLoop(ad) {
     var token = B.loopToken = (B.loopToken || 0) + 1;
-    blobUrl(ad.url).then(function (u) {
+    videoUrl(ad.url).then(function (u) {
       if (token !== B.loopToken || !P.backup.active) { try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ } return; }
       var old = B.loopUrl; B.loopUrl = u; B.loopId = ad.id;
       if (!B.current) {
         var bv = $('bvideo'); var man = P.backup.manifest;
         bv.loop = !man || man.ads.length < 2; bv.muted = true; bv.src = u;
         bv.onended = function () { if (!B.current) nextLoop(); };
-        var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ });
+        var p = bv.play(); if (p && p['catch']) p['catch'](function (er) { videoProblem('no se pudo iniciar el video de fondo', er); });
       }
       if (old && old !== u) setTimeout(function () { try { URL.revokeObjectURL(old); } catch (e) { /* ignore */ } }, 5000);
     })['catch'](function () { /* ignore */ });
@@ -573,6 +595,7 @@
     var bv = $('bvideo');
     if (!B.loopUrl || bv.error) { B.loopUrl = null; refreshLoop(); }
     else if (bv.paused) { var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ }); }
+    else if (bv.readyState < 2 || bv.videoWidth === 0) videoProblem('el video de fondo no muestra imagen');
   }, 30000);
 
   // Actualización automática: los televisores solo tienen un control sencillo (sin F5). Cuando el servidor tiene una

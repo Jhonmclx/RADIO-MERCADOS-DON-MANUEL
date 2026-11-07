@@ -52,6 +52,9 @@ test('modo local: descarga una vez, reproduce canciones y comercial con sonido, 
     await waitFor(async () => page.evaluate(() => window.RMDM.backup.active && !document.getElementById('baudio').paused), { timeout: 60_000, label: 'suena tras recargar' });
     await page.waitForTimeout(3000);
     assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('wait')).display), 'none', 'la pantalla del logo no tapa el video');
+    // Con el service worker activo, el video usa la dirección normal servida desde la copia del TV (no blob:)
+    await page.evaluate(() => { const a = document.getElementById('baudio'); a.currentTime = Math.max(0, a.duration - 0.2); });
+    await waitFor(async () => page.evaluate(() => { const v = document.getElementById('bvideo'); return v.currentSrc.indexOf(location.origin + '/media/local/') === 0 && v.videoWidth > 0 && !v.paused; }), { timeout: 30_000, label: 'video por service worker con imagen' });
     // Sin Internet: sigue sonando
     await ctx.setOffline(true);
     await sleep(8000);

@@ -39,6 +39,9 @@ export function registerPublicRoutes(router, app) {
   router.get('/api/public/time', (req, res) => json(res, 200, { now: Date.now() }));
 
   // Página del reproductor (una por sede).
+  // Debe registrarse ANTES de /player/:slug (si no, "sw.js" se toma como nombre de sede y responde 404).
+  router.get('/player/sw.js', (req, res) => sendFile(req, res, path.join(cfg.root, 'public', 'player', 'sw.js'),
+    { headers: { 'Service-Worker-Allowed': '/player/', 'Content-Type': 'text/javascript; charset=utf-8' } }));
   router.get('/player/:slug', (req, res, ctx) => {
     // Enlaces antiguos /player/sede-N: redirigen a la sede correspondiente por su número.
     const old = /^sede-(\d)$/.exec(ctx.params.slug);
@@ -51,8 +54,6 @@ export function registerPublicRoutes(router, app) {
     sendFile(req, res, path.join(cfg.root, 'public', 'player', 'player.html'), { headers: securityHeaders('player') });
   });
   // Service worker con alcance /player/ (el nombre contiene un punto, por lo que nunca choca con una sede).
-  router.get('/player/sw.js', (req, res) => sendFile(req, res, path.join(cfg.root, 'public', 'player', 'sw.js'),
-    { headers: { 'Service-Worker-Allowed': '/player/', 'Content-Type': 'text/javascript; charset=utf-8' } }));
 
   router.get('/diagnostico', (req, res) => sendFile(req, res, path.join(cfg.root, 'public', 'diagnostico', 'index.html'), { headers: securityHeaders('player') }));
 
