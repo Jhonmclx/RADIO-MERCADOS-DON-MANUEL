@@ -90,7 +90,20 @@ export function registerAdminRoutes(router, app) {
   });
 
   // ---- presentación
-  const adView = (a, onAirId) => {
+  // Sedes de un comercial: lista vacía = todas las sedes.
+  const SITE_IDS_SQL = '(SELECT group_concat(x.site_id) FROM ad_sites x WHERE x.ad_id = a.id) AS site_ids';
+  const parseSiteIds = (raw) => {
+    const list = Array.isArray(raw) ? raw : String(raw ?? '').split(',');
+    const ids = [...new Set(list.map((v) => Number(String(v).trim())).filter((n) => Number.isInteger(n) && n > 0))];
+    for (const sid of ids) if (!db.get('SELECT id FROM sites WHERE id = ?', sid)) throw new HttpError(400, `La sede #${sid} no existe.`);
+    return ids;
+  };
+  const setAdSites = (adId, ids) => db.tx(() => {
+    db.run('DELETE FROM ad_sites WHERE ad_id = ?', adId);
+    for (const sid of ids) db.run('INSERT INTO ad_sites (ad_id, site_id) VALUES (?, ?)', adId, sid);
+  });
+  const siteNames = () => Object.fromEntries(db.all('SELECT id, name FROM sites').map((s) => [s.id, s.name]));
+  const adView = (a, onAirId, names = siteNames()) => {
     const now = Date.now();
     let state = a.status;
     if (a.status === 'listo') {
@@ -110,10 +123,12 @@ export function registerAdminRoutes(router, app) {
       plays: a.plays ?? 0, lastPlayedAt: a.last_played_at ?? null,
       thumbUrl: a.status === 'listo' ? `/api/admin/ads/${a.id}/thumb` : null,
       videoUrl: a.status === 'listo' ? `/api/admin/ads/${a.id}/video` : null,
+      siteIds: a.site_ids ? String(a.site_ids).split(',').map(Number) : [],
+      siteNames: a.site_ids ? String(a.site_ids).split(',').map((x) => names[Number(x)] || `Sede #${x}`) : [],
     };
   };
   const loadAd = (id) => {
-    const a = db.get('SELECT a.*, adv.name AS advertiser_name FROM ads a LEFT JOIN advertisers adv ON adv.id = a.advertiser_id WHERE a.id = ?', id);
+    const a = db.get(`SELECT a.*, adv.name AS advertiser_name, ${SITE_IDS_SQL} FROM ads a LEFT JOIN advertisers adv ON adv.id = a.advertiser_id WHERE a.id = ?`, id);
     if (!a) throw new HttpError(404, 'Comercial no encontrado.');
     return a;
   };
@@ -158,7 +173,7 @@ export function registerAdminRoutes(router, app) {
     if (ps && !ps.enabled && process.env.RENDER) alerts.push({ level: 'warn', text: 'Sin almacenamiento permanente: la música y los comerciales se borran si el servidor se reinicia.' });
     if (ps?.enabled && ps.lastError) alerts.push({ level: 'warn', text: `Almacenamiento permanente: ${ps.lastError}` });
     const songs = db.get("SELECT COUNT(*) AS n FROM songs WHERE status = 'listo' AND enabled = 1 AND archived = 0").n;
-    const ads = engine.eligibleAds(Date.now()).length;
+    const ads = engine.eligibleAds(Date.now(), 'all').length;
     if (!songs) alerts.push({ level: 'info', text: 'No hay canciones habilitadas: suba archivos MP3 en la sección Música.' });
     if (!ads) alerts.push({ level: 'info', text: 'No hay comerciales en rotación.' });
     const hours = db.all('SELECT weekday, start_min, end_min FROM schedule_hours');
@@ -256,13 +271,14 @@ export function registerAdminRoutes(router, app) {
     if (q.get('advertiserId')) { where.push('a.advertiser_id = ?'); args.push(Number(q.get('advertiserId'))); }
     if (q.get('from')) { where.push('a.created_at >= ?'); args.push(localDateTime(`${q.get('from')}T00:00`, tz, 'Desde')); }
     if (q.get('to')) { where.push('a.created_at < ?'); args.push(localDateTime(`${q.get('to')}T00:00`, tz, 'Hasta') + 86_400_000); }
-    const rows = db.all(`SELECT a.*, adv.name AS advertiser_name,
+    const rows = db.all(`SELECT a.*, adv.name AS advertiser_name, ${SITE_IDS_SQL},
         (SELECT COUNT(*) FROM ad_plays p WHERE p.ad_id = a.id AND p.status = 'completado') AS plays,
         (SELECT MAX(started_at) FROM ad_plays p WHERE p.ad_id = a.id AND p.status IN ('completado','interrumpido')) AS last_played_at
       FROM ads a LEFT JOIN advertisers adv ON adv.id = a.advertiser_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
       ORDER BY a.position, a.id`, ...args);
     const onAir = engine.current?.kind === 'ad' ? engine.current.mediaId : null;
-    let ads = rows.map((a) => adView(a, onAir));
+    const names = siteNames();
+    let ads = rows.map((a) => adView(a, onAir, names));
     if (q.get('state')) ads = ads.filter((a) => a.state === q.get('state') || a.status === q.get('state'));
     json(res, 200, { ads, nextAdId: engine.next?.kind === 'ad' ? engine.next.mediaId : null });
   });
@@ -273,10 +289,12 @@ export function registerAdminRoutes(router, app) {
     const advertiserId = int(q.get('advertiserId'), { name: 'anunciante', min: 1 });
     if (advertiserId && !db.get('SELECT id FROM advertisers WHERE id = ?', advertiserId)) throw new HttpError(400, 'El anunciante no existe.');
     const filename = str(q.get('filename'), { name: 'archivo', max: 255, required: true });
+    const siteIds = parseSiteIds(q.get('sites'));
     let received;
     try { received = await library.receive(req, { kind: 'ad', originalName: filename, mimeType: req.headers['x-file-type'] }); }
     catch (e) { if (e instanceof UploadError) throw new HttpError(e.status, e.message); throw e; }
     const id = library.createAd(received, { name, advertiserId, originalName: filename });
+    if (siteIds.length) setAdSites(id, siteIds);
     const activate = bool(q.get('activate'));
     const placeFirst = q.get('position') === 'inicio';
     db.tx(() => {
@@ -286,7 +304,7 @@ export function registerAdminRoutes(router, app) {
         db.run('UPDATE ads SET position = 1 WHERE id = ?', id);
       }
     });
-    db.audit(ctx.user, 'subir_comercial', 'ad', id, { name, filename, size: received.size, sha256: received.sha256, activate }, ctx.ip);
+    db.audit(ctx.user, 'subir_comercial', 'ad', id, { name, filename, size: received.size, sha256: received.sha256, activate, siteIds }, ctx.ip);
     json(res, 202, { id, message: 'Archivo recibido. Se está validando y procesando; quedará disponible cuando termine.' });
   });
 
@@ -301,8 +319,10 @@ export function registerAdminRoutes(router, app) {
     const from = localDateTime(b.validFrom, tz, 'Vigencia desde');
     const to = localDateTime(b.validTo, tz, 'Vigencia hasta');
     if (from && to && to <= from) throw new HttpError(400, 'La fecha final de vigencia debe ser posterior a la inicial.');
+    const siteIds = b.siteIds === undefined ? null : parseSiteIds(b.siteIds);
     db.run('UPDATE ads SET name=?, advertiser_id=?, weight=?, valid_from=?, valid_to=?, updated_at=? WHERE id=?', name, advertiserId, weight, from, to, Date.now(), id);
-    const r = changed(ctx, 'editar_comercial', 'ad', id, { name, advertiserId, weight, validFrom: b.validFrom || null, validTo: b.validTo || null });
+    if (siteIds) setAdSites(id, siteIds);
+    const r = changed(ctx, 'editar_comercial', 'ad', id, { name, advertiserId, weight, validFrom: b.validFrom || null, validTo: b.validTo || null, siteIds });
     json(res, 200, { ok: true, appliedToNext: r.replanned });
   });
 

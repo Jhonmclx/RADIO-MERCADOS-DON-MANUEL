@@ -390,11 +390,22 @@ function makeSortable(tbody, onDrop) {
 }
 
 // ------------------------------------------------------------------ COMERCIALES
+async function loadSiteList() { S.siteList = (await api('GET', '/api/admin/sites')).sites.map((s) => ({ id: s.id, name: s.name })); return S.siteList; }
+// Selector de sedes de un comercial: "Todas las sedes" o solo algunas (p. ej. precios del Terminal).
+const siteChecks = (pfx, selected = []) => `<div class="f"><span>Sedes donde se muestra</span>
+  <label class="check"><input type="checkbox" data-allsites="${pfx}" ${selected.length ? '' : 'checked'}> Todas las sedes</label>
+  <div class="site-checks" style="display:flex;flex-wrap:wrap;gap:4px 14px">${(S.siteList || []).map((s) => `<label class="check"><input type="checkbox" data-site="${pfx}" value="${s.id}" ${selected.includes(s.id) ? 'checked' : ''} ${selected.length ? '' : 'disabled'}> ${esc(s.name)}</label>`).join('')}</div></div>`;
+function wireSiteChecks(root, pfx) {
+  const all = $(`[data-allsites="${pfx}"]`, root);
+  const boxes = $$(`[data-site="${pfx}"]`, root);
+  all.addEventListener('change', () => { boxes.forEach((b) => { b.disabled = all.checked; if (all.checked) b.checked = false; }); });
+  return () => (all.checked ? [] : boxes.filter((b) => b.checked).map((b) => Number(b.value)));
+}
 async function loadAdvertisers() { S.advertisers = (await api('GET', '/api/admin/advertisers')).advertisers; return S.advertisers; }
 const advOptions = (sel, empty = 'Sin anunciante') => `<option value="">${empty}</option>${S.advertisers.map((a) => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}${a.active ? '' : ' (inactivo)'}</option>`).join('')}`;
 
 RENDER.comerciales = async (el) => {
-  await loadAdvertisers();
+  await Promise.all([loadAdvertisers(), loadSiteList()]);
   el.innerHTML = `<div class="card"><h2>Subir comercial</h2>
     <p class="small muted">Recomendado: MP4 con video H.264 y audio AAC. También se aceptan MOV, WEBM, MKV, AVI. El sistema valida el archivo, lo convierte al formato común de la señal, calcula su huella SHA-256 y solo lo marca como disponible cuando todo termina bien.</p>
     <form id="upf" class="form-grid">
@@ -403,6 +414,7 @@ RENDER.comerciales = async (el) => {
       <label class="f">Anunciante<select id="upadv">${advOptions(null)}</select></label>
       <label class="f">Posición en la lista<select id="uppos"><option value="final">Al final</option><option value="inicio">Al inicio</option></select></label>
       <label class="check"><input type="checkbox" id="upact" checked> Activar al terminar la validación</label>
+      ${siteChecks('up')}
       <button class="btn primary">Subir</button>
     </form>
     <div id="upstat" class="hidden" style="margin-top:12px"><div class="small" id="uptext"></div><div class="upload-progress"><div id="upbar"></div></div></div></div>
@@ -414,13 +426,16 @@ RENDER.comerciales = async (el) => {
       <label class="f">Subido desde<input type="date" id="ffrom"></label><label class="f">Hasta<input type="date" id="fto"></label>
     </div><div id="adlist"></div></div>`;
   $('#upfile', el).addEventListener('change', (e) => { const f = e.target.files[0]; if (f && !$('#upname', el).value) $('#upname', el).value = f.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '); });
+  const upSites = wireSiteChecks(el, 'up');
   $('#upf', el).addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!$('[data-allsites="up"]', el).checked && !upSites().length) return toast('Elija al menos una sede o marque «Todas las sedes».', true);
     const f = $('#upfile', el).files[0];
     if (!f) return;
     if (f.size > 2048 * 1048576) return toast('El archivo supera 2 GB. Comprímalo antes de subirlo.', true);
     const q = new URLSearchParams({ name: $('#upname', el).value, filename: f.name, activate: $('#upact', el).checked ? '1' : '0', position: $('#uppos', el).value });
     if ($('#upadv', el).value) q.set('advertiserId', $('#upadv', el).value);
+    if (upSites().length) q.set('sites', upSites().join(','));
     $('#upstat', el).classList.remove('hidden');
     const btn = $('#upf button', el); btn.disabled = true;
     try {
@@ -444,7 +459,7 @@ RENDER.comerciales = async (el) => {
       <tbody id="adbody">${d.ads.map((a) => `<tr data-id="${a.id}">
         <td>${filtered ? '' : '<span class="handle" title="Arrastrar para ordenar">⠿</span>'}<span class="small muted">${a.position}</span></td>
         <td>${a.thumbUrl ? `<img class="thumb" src="${a.thumbUrl}" alt="" loading="lazy">` : '<div class="thumb"></div>'}</td>
-        <td><b>${esc(a.name)}</b>${a.id === d.nextAdId ? ' <span class="chip info">siguiente</span>' : ''}<div class="small muted">${esc(a.advertiserName || 'Sin anunciante')} · #${a.id}</div>
+        <td><b>${esc(a.name)}</b>${a.id === d.nextAdId ? ' <span class="chip info">siguiente</span>' : ''}<div class="small muted">${esc(a.advertiserName || 'Sin anunciante')} · #${a.id}</div>${a.siteNames && a.siteNames.length ? `<span class="chip warn">Solo: ${esc(a.siteNames.join(', '))}</span>` : ''}
           ${a.error ? `<div class="small" style="color:var(--rojo)">${esc(a.error)}</div>` : ''}${a.warnings ? `<div class="small" style="color:#8a5a00">${esc(a.warnings)}</div>` : ''}
           ${a.activateOnReady ? '<div class="small muted">Se activará al terminar la validación.</div>' : ''}</td>
         <td>${chip(LABEL.adState[a.state])}</td><td>${fmtDur(a.durationMs)}</td><td>${a.weight}×</td>
@@ -487,14 +502,17 @@ async function adAction(act, id, ads, reload) {
         <label class="f">Anunciante<select id="ea">${advOptions(a.advertiserId)}</select></label>
         <label class="f">Frecuencia en la rotación <span class="hint">1 = normal. Con 2, sale el doble de veces que uno de frecuencia 1, sin repetirse seguido.</span>
           <select id="ew">${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => `<option ${n === a.weight ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        ${siteChecks('ed', a.siteIds || [])}
         <div class="grid g2"><label class="f">Vigencia desde <span class="hint">hora de Colombia</span><input type="datetime-local" id="ef" value="${esc((a.validFrom || '').replace(' ', 'T'))}"></label>
         <label class="f">Vigencia hasta<input type="datetime-local" id="et" value="${esc((a.validTo || '').replace(' ', 'T'))}"></label></div>
         <p class="small muted">Archivo original: ${esc(a.originalName || '—')} · ${fmtBytes(a.sizeBytes)} · ${a.width || '?'}×${a.height || '?'}<br>SHA-256: <span class="mono">${esc(a.sha256 || '—')}</span></p></div>
         <div class="actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="ok">Guardar</button></div>`);
+      const edSites = wireSiteChecks(m.el, 'ed');
       await new Promise((resolve) => $('#ok', m.el).addEventListener('click', async () => {
         try {
+          if (!$('[data-allsites="ed"]', m.el).checked && !edSites().length) { toast('Elija al menos una sede o marque «Todas las sedes».', true); return; }
           await api('PUT', `/api/admin/ads/${id}`, { name: $('#en', m.el).value, advertiserId: $('#ea', m.el).value || null, weight: Number($('#ew', m.el).value),
-            validFrom: $('#ef', m.el).value || null, validTo: $('#et', m.el).value || null });
+            validFrom: $('#ef', m.el).value || null, validTo: $('#et', m.el).value || null, siteIds: edSites() });
           toast('Comercial actualizado.'); m.close();
         } catch (e) { fail(e); }
         resolve();

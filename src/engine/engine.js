@@ -326,13 +326,26 @@ export class Engine extends EventEmitter {
   }
 
   // ---------------------------------------------------------------- planificación
-  eligibleAds(at) {
+  /**
+   * Comerciales vigentes. scope:
+   *  - 'central' (por defecto): señal única para todas las sedes → solo los comerciales SIN restricción de sede.
+   *  - { siteId }: los de todas las sedes + los asignados solo a esa sede (modo local de cada TV).
+   *  - 'all': cualquiera (para validar descargas).
+   */
+  eligibleAds(at, scope = 'central') {
+    let siteSql = ''; const siteArgs = [];
+    if (scope === 'central') siteSql = 'AND NOT EXISTS (SELECT 1 FROM ad_sites x WHERE x.ad_id = a.id)';
+    else if (scope && scope.siteId != null) {
+      siteSql = 'AND (NOT EXISTS (SELECT 1 FROM ad_sites x WHERE x.ad_id = a.id) OR EXISTS (SELECT 1 FROM ad_sites x WHERE x.ad_id = a.id AND x.site_id = ?))';
+      siteArgs.push(scope.siteId);
+    }
     return this.db.all(`SELECT a.id, a.name, a.weight, a.duration_ms, a.position, a.normalized_sha256, a.advertiser_id, adv.name AS advertiser_name
       FROM ads a LEFT JOIN advertisers adv ON adv.id = a.advertiser_id
       WHERE a.status = 'listo' AND a.active = 1
         AND (a.valid_from IS NULL OR a.valid_from <= ?) AND (a.valid_to IS NULL OR a.valid_to > ?)
         AND (a.advertiser_id IS NULL OR (adv.active = 1 AND (adv.valid_from IS NULL OR adv.valid_from <= ?) AND (adv.valid_to IS NULL OR adv.valid_to > ?)))
-      ORDER BY a.position, a.id`, at, at, at, at);
+        ${siteSql}
+      ORDER BY a.position, a.id`, at, at, at, at, ...siteArgs);
   }
 
   eligibleSongs() {

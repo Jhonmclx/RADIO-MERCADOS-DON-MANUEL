@@ -133,26 +133,26 @@ export function registerPublicRoutes(router, app) {
     json(res, 200, { ok: true, accepted, serverNow: now, playerVersion, configVersion: st.configVersion, engineMode: st.mode, targetDelayMs: cfg.hls.targetDelayMs });
   });
 
-  const backupAds = () => engine.eligibleAds(Date.now()).filter((a) => {
+  const backupAds = (siteId) => engine.eligibleAds(Date.now(), siteId == null ? 'all' : { siteId }).filter((a) => {
     const r = db.get('SELECT backup_sha256 FROM ads WHERE id = ?', a.id);
     return r?.backup_sha256;
   });
 
   router.get('/api/public/sites/:slug/backup-manifest', (req, res, ctx) => {
-    siteBySlug(ctx.params.slug);
+    const site = siteBySlug(ctx.params.slug);
     // Modo local (?modo=local): el televisor descarga TODA la programación una vez y la reproduce él mismo,
     // con los comerciales en calidad normal. Así casi no consume Internet del servidor.
     const local = new URL(req.url, 'http://x').searchParams.get('modo') === 'local';
     const size = (f) => { try { return fs.statSync(f).size; } catch { return null; } };
     let ads;
     if (local) {
-      ads = engine.eligibleAds(Date.now()).map((a) => {
+      ads = engine.eligibleAds(Date.now(), { siteId: site.id }).map((a) => {
         const r = db.get('SELECT normalized_sha256, duration_ms FROM ads WHERE id = ?', a.id);
         if (!r?.normalized_sha256) return null;
         return { id: a.id, url: `/media/local/ad/${a.id}/${r.normalized_sha256.slice(0, 16)}.mp4`, durationMs: r.duration_ms, sha256: r.normalized_sha256, bytes: size(library.adFile(a.id)) };
       }).filter(Boolean);
     } else {
-      ads = backupAds().slice(0, 6).map((a) => {
+      ads = backupAds(site.id).slice(0, 6).map((a) => {
         const r = db.get('SELECT backup_sha256, duration_ms FROM ads WHERE id = ?', a.id);
         return { id: a.id, url: `/media/backup/ad/${a.id}/${r.backup_sha256.slice(0, 16)}.mp4`, durationMs: r.duration_ms, sha256: r.backup_sha256, bytes: size(library.adFile(a.id, 'backup')) };
       });
@@ -172,7 +172,7 @@ export function registerPublicRoutes(router, app) {
 
   router.get('/media/local/ad/:id/:file', (req, res, ctx) => {
     const id = Number(ctx.params.id);
-    if (!Number.isInteger(id) || !engine.eligibleAds(Date.now()).some((a) => a.id === id)) throw new HttpError(404, 'No disponible.');
+    if (!Number.isInteger(id) || !engine.eligibleAds(Date.now(), 'all').some((a) => a.id === id)) throw new HttpError(404, 'No disponible.');
     sendFile(req, res, library.adFile(id), { cacheControl: 'public, max-age=86400, immutable' });
   });
   router.get('/media/local/song/:id/:file', (req, res, ctx) => {
