@@ -502,8 +502,8 @@
           B.current = null; bv.onended = null;
           var pm = P.backup.manifest;
           if (pm.musicPaused || !pm.songs.length) { nextBackupItem(); return; } // solo comerciales: uno tras otro, sin volver al fondo
-          bv.muted = true; bv.loop = true; if (B.loopUrl) bv.src = B.loopUrl;
-          var p2 = bv.play(); if (p2 && p2['catch']) p2['catch'](function () { /* ignore */ });
+          // De vuelta a la música: el fondo sigue con el comercial que va DESPUÉS del que acaba de salir.
+          bv.muted = true; B.loopId = ad.id; nextLoop();
           nextBackupItem();
         };
         var p = bv.play(); if (p && p['catch']) p['catch'](function () { nextBackupItem(); });
@@ -521,19 +521,41 @@
     while (B.urls.length > 6) { try { URL.revokeObjectURL(B.urls.shift()); } catch (e) { /* ignore */ } }
   }
 
-  // Video de fondo (comercial en silencio mientras suena la música). Se renueva si ese comercial ya no está en la
-  // programación (eliminado o reemplazado) o si al iniciar no había comerciales.
+  // Video de fondo (comerciales en silencio mientras suena la música). Van ROTANDO: cuando termina uno, empieza
+  // el siguiente de la lista (antes se repetía siempre el primero). Con un solo comercial, ese se repite en ciclo.
+  // Se renueva también si el comercial ya no está en la programación (eliminado o reemplazado) o si al iniciar no había.
   function refreshLoop() {
     var man = P.backup.manifest; if (!P.backup.active || !man || !man.ads.length) return;
     var ids = man.ads.map(function (a) { return a.id; });
-    if (B.loopUrl && ids.indexOf(B.loopId) >= 0) return;
-    var ad = man.ads[0];
+    if (B.loopUrl && ids.indexOf(B.loopId) >= 0) {
+      $('bvideo').loop = man.ads.length < 2; // si cambió la cantidad de comerciales, se ajusta sin cortar el que se ve
+      return;
+    }
+    showLoop(man.ads[0]);
+  }
+
+  function nextLoop() {
+    var man = P.backup.manifest; if (!P.backup.active || !man || !man.ads.length) return;
+    var ids = man.ads.map(function (a) { return a.id; });
+    var i = ids.indexOf(B.loopId); // si ya no existe (-1), se empieza por el primero
+    showLoop(man.ads[(i + 1) % man.ads.length]);
+  }
+
+  function showLoop(ad) {
+    var token = B.loopToken = (B.loopToken || 0) + 1;
     blobUrl(ad.url).then(function (u) {
+      if (token !== B.loopToken || !P.backup.active) { try { URL.revokeObjectURL(u); } catch (e) { /* ignore */ } return; }
       var old = B.loopUrl; B.loopUrl = u; B.loopId = ad.id;
-      if (!B.current) { var bv = $('bvideo'); bv.src = u; bv.loop = true; bv.muted = true; var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ }); }
-      if (old) setTimeout(function () { try { URL.revokeObjectURL(old); } catch (e) { /* ignore */ } }, 5000);
+      if (!B.current) {
+        var bv = $('bvideo'); var man = P.backup.manifest;
+        bv.loop = !man || man.ads.length < 2; bv.muted = true; bv.src = u;
+        bv.onended = function () { if (!B.current) nextLoop(); };
+        var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ });
+      }
+      if (old && old !== u) setTimeout(function () { try { URL.revokeObjectURL(old); } catch (e) { /* ignore */ } }, 5000);
     })['catch'](function () { /* ignore */ });
   }
+  window.RMDM_loop = function () { return { id: B.loopId, hasUrl: !!B.loopUrl }; }; // diagnóstico y pruebas
 
   // Aplica de inmediato "Pausar la música" / "Pausar publicidad" del panel en modo local.
   function applyLocalSettings() {
@@ -627,6 +649,8 @@
         clearInterval(fade);
         try { ba.pause(); bv.pause(); ba.removeAttribute('src'); bv.removeAttribute('src'); ba.volume = 1; } catch (e) { /* ignore */ }
         while (B.urls.length) { try { URL.revokeObjectURL(B.urls.shift()); } catch (e) { /* ignore */ } }
+        if (B.loopUrl) { try { URL.revokeObjectURL(B.loopUrl); } catch (e) { /* ignore */ } }
+        B.loopUrl = null; B.loopId = null; B.loopToken = (B.loopToken || 0) + 1; bv.onended = null;
         $('backup').className = 'hidden';
         P.backup.active = false; B.returnPending = false;
         logEvent('respaldo_fin', null);
