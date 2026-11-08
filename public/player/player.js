@@ -444,9 +444,13 @@
 
   // Video: si el service worker controla la página se usa la dirección normal (/media/...), que él entrega desde
   // la copia guardada; algunos navegadores de TV no reproducen video desde direcciones blob:. Si no, se usa blob.
+  // Dos formas de entregar el video al TV; cada TV recuerda la que le funciona:
+  //  'blob' (archivo en memoria, la de siempre) o 'sw' (dirección normal servida por el service worker).
+  // Si con una el video no avanza, se cambia sola a la otra.
+  var videoMode = lsGet('rmdm-video-mode', 'blob');
   function videoUrl(url) {
     var sw = navigator.serviceWorker && navigator.serviceWorker.controller;
-    if (!sw) return blobUrl(url);
+    if (videoMode !== 'sw' || !sw) return blobUrl(url);
     return caches.open(BACKUP_CACHE).then(function (c) { return c.match(url); }).then(function (r) {
       if (!r) throw new Error('no está en el respaldo');
       return location.origin + url;
@@ -577,6 +581,7 @@
       if (old && old !== u) setTimeout(function () { try { URL.revokeObjectURL(old); } catch (e) { /* ignore */ } }, 5000);
     })['catch'](function () { /* ignore */ });
   }
+  window.RMDM_video = { mode: function () { return videoMode; }, failed: function () { return B.videoFailed; }, B: B }; // pruebas
   window.RMDM_loop = function () { return { id: B.loopId, hasUrl: !!B.loopUrl }; }; // diagnóstico y pruebas
 
   // Aplica de inmediato "Pausar la música" / "Pausar publicidad" del panel en modo local.
@@ -595,8 +600,33 @@
     var bv = $('bvideo');
     if (!B.loopUrl || bv.error) { B.loopUrl = null; refreshLoop(); }
     else if (bv.paused) { var p = bv.play(); if (p && p['catch']) p['catch'](function () { /* ignore */ }); }
-    else if (bv.readyState < 2 || bv.videoWidth === 0) videoProblem('el video de fondo no muestra imagen');
   }, 30000);
+
+  // Vigila que el video realmente avance. Si no avanza (o da error) durante ~15 s, se registra en el panel y se
+  // prueba la otra forma de entregarlo (como máximo 2 cambios por carga de página).
+  B.vStuck = 0; B.vLastT = -1; B.vSwitches = 0; B.videoFailed = false;
+  setInterval(function () {
+    var bv = $('bvideo');
+    var expect = P.backup.active && (B.current || B.loopUrl);
+    if (!expect) { B.vStuck = 0; B.vLastT = -1; B.videoFailed = false; return; }
+    var t = bv.currentTime || 0;
+    var moving = !bv.error && !bv.paused && t !== B.vLastT;
+    B.vLastT = t;
+    if (moving) { B.vStuck = 0; B.videoFailed = false; return; }
+    if (bv.paused && !bv.error) return; // en pausa a propósito (p. ej. esperando la pulsación de sonido)
+    B.vStuck++;
+    if (B.vStuck < 3) return;
+    B.videoFailed = true;
+    videoProblem('el video no avanza (modo ' + videoMode + ')');
+    var sw = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (B.vSwitches < 2 && !B.current && (videoMode === 'sw' || sw)) {
+      B.vSwitches++; B.vStuck = 0;
+      videoMode = videoMode === 'sw' ? 'blob' : 'sw';
+      lsSet('rmdm-video-mode', videoMode);
+      logEvent('video_cambio_modo', { modo: videoMode });
+      B.loopUrl = null; B.loopId = null; refreshLoop();
+    }
+  }, 5000);
 
   // Actualización automática: los televisores solo tienen un control sencillo (sin F5). Cuando el servidor tiene una
   // versión nueva del reproductor, la página se recarga sola en un momento tranquilo (al terminar una canción,
@@ -617,7 +647,9 @@
   // el fondo de la marca con el nombre de la canción.
   function updateNowPlaying() {
     var bv = $('bvideo'); var np = $('nowplaying'); if (!np) return;
-    var videoOk = (!!B.current || !!B.loopUrl) && !bv.error && bv.readyState >= 2 && bv.videoWidth > 0;
+    // Solo se tapa el video si no hay comerciales o si se comprobó que el video no avanza (no por medidas del
+    // tamaño del video, que algunos televisores reportan en 0 aunque se vea bien).
+    var videoOk = (!!B.current || !!B.loopUrl) && !B.videoFailed;
     np.className = (P.backup.active && !videoOk) ? 'screen' : 'screen hidden';
     var s = B.nowSong;
     $('npTitle').textContent = B.current ? 'Mensaje comercial' : (s ? (s.title || 'Música') : '');

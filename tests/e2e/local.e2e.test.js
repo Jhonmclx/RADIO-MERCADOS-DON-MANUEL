@@ -52,9 +52,18 @@ test('modo local: descarga una vez, reproduce canciones y comercial con sonido, 
     await waitFor(async () => page.evaluate(() => window.RMDM.backup.active && !document.getElementById('baudio').paused), { timeout: 60_000, label: 'suena tras recargar' });
     await page.waitForTimeout(3000);
     assert.equal(await page.evaluate(() => getComputedStyle(document.getElementById('wait')).display), 'none', 'la pantalla del logo no tapa el video');
-    // Con el service worker activo, el video usa la dirección normal servida desde la copia del TV (no blob:)
-    await page.evaluate(() => { const a = document.getElementById('baudio'); a.currentTime = Math.max(0, a.duration - 0.2); });
-    await waitFor(async () => page.evaluate(() => { const v = document.getElementById('bvideo'); return v.currentSrc.indexOf(location.origin + '/media/local/') === 0 && v.videoWidth > 0 && !v.paused; }), { timeout: 30_000, label: 'video por service worker con imagen' });
+    // El video de fondo avanza (forma 'blob' por defecto)
+    const t0 = await page.evaluate(() => document.getElementById('bvideo').currentTime);
+    await waitFor(async () => page.evaluate((t) => { const v = document.getElementById('bvideo'); return !v.paused && v.currentTime !== t; }, t0), { timeout: 15_000, label: 'video de fondo avanza' });
+    assert.equal(await page.evaluate(() => window.RMDM_video.mode()), 'blob');
+    assert.equal(await page.evaluate(() => document.getElementById('nowplaying').classList.contains('hidden')), true, 'no se tapa el video');
+    // Si el video deja de avanzar, cambia sola a la otra forma (service worker) y vuelve a verse
+    // (se simula un TV donde el video "se congela": su posición deja de avanzar)
+    await page.evaluate(() => { const v = document.getElementById('bvideo'); Object.defineProperty(v, 'currentTime', { configurable: true, get: () => 1.234, set: () => {} }); });
+    await waitFor(async () => page.evaluate(() => window.RMDM_video.mode() === 'sw'), { timeout: 40_000, label: 'cambia a modo service worker' });
+    await page.evaluate(() => { delete document.getElementById('bvideo').currentTime; });
+    await waitFor(async () => page.evaluate(() => { const v = document.getElementById('bvideo'); return v.currentSrc.indexOf(location.origin + '/media/local/') === 0 && !v.paused && v.currentTime > 0.3; }), { timeout: 30_000, label: 'video por service worker avanza' });
+    await waitFor(async () => page.evaluate(() => document.getElementById('nowplaying').classList.contains('hidden')), { timeout: 15_000, label: 'vuelve a verse el video' });
     // Sin Internet: sigue sonando
     await ctx.setOffline(true);
     await sleep(8000);
