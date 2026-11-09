@@ -46,10 +46,12 @@ self.addEventListener('fetch', function (e) {
   if (url.pathname.indexOf('/live/') === 0 || url.pathname.indexOf('/api/') === 0 || url.pathname.indexOf('/media/') === 0) return;
   var isPlayerPage = /^\/player\/[a-z0-9-]+$/.test(url.pathname);
   if (isPlayerPage || ASSETS.indexOf(url.pathname) >= 0) {
-    // Red primero (para recibir actualizaciones); si no hay Internet, la copia guardada.
+    // Red primero (para recibir actualizaciones). Si no hay Internet, o el servidor responde con error (por ejemplo
+    // mientras el PC del almacén se reinicia o se actualiza), se usa la copia guardada: así el TV nunca queda en
+    // «Página web no disponible» y sigue sonando con lo que tiene descargado.
     e.respondWith(fetch(e.request).then(function (res) {
-      if (res && res.ok) { var copy = res.clone(); caches.open(SHELL).then(function (c) { c.put(e.request, copy); }); }
-      return res;
+      if (res && res.ok) { var copy = res.clone(); caches.open(SHELL).then(function (c) { c.put(e.request, copy); }); return res; }
+      return caches.match(e.request).then(function (hit) { return hit || res; });
     })['catch'](function () { return caches.match(e.request); }));
   }
 });

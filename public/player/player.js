@@ -287,7 +287,7 @@
       P.lastProgressAt = now();
       P.reloadFailures++;
       onSignalLost('reproducción detenida');
-      if (P.reloadFailures >= 10) { logEvent('recarga', { motivo: 'fallos repetidos' }); flush(function () { location.reload(); }); return; }
+      if (P.reloadFailures >= 10) { logEvent('recarga', { motivo: 'fallos repetidos' }); safeReload(); return; }
       restartLive();
       return;
     }
@@ -494,7 +494,7 @@
 
   function nextBackupItem() {
     if (!P.backup.active) return;
-    if (B.updatePending && !B.current) { B.songPlaying = false; flush(function () { location.reload(); }); return; } // momento tranquilo para actualizarse
+    if (B.updatePending && !B.current) { B.songPlaying = false; safeReload(); return; } // momento tranquilo para actualizarse
     if (B.returnPending) { stopBackup(); return; }
     var man = P.backup.manifest;
     var n = Math.max(1, man.songsBetweenAds || 2);
@@ -639,7 +639,7 @@
     var t = setInterval(function () {
       var midAd = P.backup.active && B.current;
       var midSong = P.backup.active && B.songPlaying && now() < deadline;
-      if (!midAd && !midSong) { clearInterval(t); flush(function () { location.reload(); }); }
+      if (!midAd && !midSong) { clearInterval(t); safeReload(); }
     }, 1000);
   }
 
@@ -656,6 +656,17 @@
     $('npArtist').textContent = !B.current && s && s.artist ? s.artist : '';
   }
   setInterval(updateNowPlaying, 3000);
+
+  // Recarga la página solo si el servidor responde bien en ese momento; si no, vuelve a intentar en 1 minuto.
+  // (Antes, si el PC del almacén se estaba reiniciando justo al recargar, el TV quedaba en «Página web no disponible».)
+  function safeReload() {
+    flush(function () {
+      http('GET', API + '/state?_=' + now(), null, function (err) {
+        if (err) { setTimeout(safeReload, 60000); return; }
+        location.reload();
+      });
+    });
+  }
 
   function startLocal() {
     var why = backupCapable();
