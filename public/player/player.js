@@ -398,13 +398,14 @@
       var items = man.ads.concat(man.songs);
       if (!items.length) { P.backup.status = 'sin contenido autorizado para respaldo'; return done(new Error(P.backup.status)); }
       var total = 0; for (var i = 0; i < items.length; i++) total += items[i].bytes || 0;
+      // Antes, si al TV no le alcanzaba el espacio para TODO (p. ej. 880 MB con 156 canciones), la descarga fallaba
+      // completa: los comerciales viejos ya se habían borrado y la lista nueva no se usaba, así que el TV quedaba
+      // sin ningún video (solo el logo) mientras sonaba la música. Ahora: primero los comerciales, luego las
+      // canciones que quepan, y el TV usa exactamente lo que tiene guardado.
       var est = navigator.storage && navigator.storage.estimate ? navigator.storage.estimate() : Promise.resolve(null);
-      est.then(function (q) {
+      est['catch'](function () { return null; }).then(function (q) {
         if (q && q.quota && q.quota - q.usage < total * 1.2) {
-          P.backup.status = 'espacio insuficiente (' + Math.round((q.quota - q.usage) / 1048576) + ' MB libres, se requieren ' + Math.round(total * 1.2 / 1048576) + ' MB)';
-          logEvent('respaldo_no_disponible', { motivo: P.backup.status });
-          done(new Error(P.backup.status));
-          return;
+          logEvent('respaldo_espacio', { libresMB: Math.round((q.quota - q.usage) / 1048576), requeridosMB: Math.round(total * 1.2 / 1048576) });
         }
         if (navigator.storage && navigator.storage.persist) navigator.storage.persist()['catch'](function () { /* ignore */ });
         return caches.open(BACKUP_CACHE).then(function (cache) {
@@ -412,26 +413,47 @@
             var wanted = {}; items.forEach(function (it) { wanted[location.origin + it.url] = true; });
             var removals = keys.filter(function (k) { return !wanted[k.url]; }).map(function (k) { return cache['delete'](k); });
             return Promise.all(removals).then(function () {
-              // Descarga secuencial para no competir con la señal en vivo.
-              var seq = Promise.resolve(); var n = 0;
-              items.forEach(function (it) {
+              // Descarga secuencial para no competir con la señal en vivo. Un archivo que falla no detiene los demás;
+              // si se llena el espacio, se dejan de bajar canciones (los comerciales van primero en la lista).
+              var seq = Promise.resolve(); var n = 0; var full = false; var failed = 0;
+              items.forEach(function (it, idx) {
+                var isAd = idx < man.ads.length;
                 seq = seq.then(function () {
+                  if (full && !isAd) return;
                   return cache.match(it.url).then(function (hit) { if (!hit) return cache.add(it.url); }).then(function () {
                     n++; if (LOCAL && !P.backup.active) showWait('Descargando música y comerciales…', n + ' de ' + items.length + ' archivos (solo la primera vez)');
+                  }, function (e) {
+                    failed++;
+                    if (e && (e.name === 'QuotaExceededError' || /quota/i.test(e.message || ''))) full = true;
                   });
                 });
               });
-              return seq;
+              return seq.then(function () { return cache.keys(); }).then(function (have) {
+                var got = {}; have.forEach(function (k) { got[k.url] = true; });
+                var has = function (it) { return !!got[location.origin + it.url]; };
+                var eff = {}; for (var k in man) if (Object.prototype.hasOwnProperty.call(man, k)) eff[k] = man[k];
+                eff.ads = man.ads.filter(has); eff.songs = man.songs.filter(has);
+                return { eff: eff, full: full, failed: failed };
+              });
             });
           });
-        }).then(function () {
-          P.backup.manifest = man; P.backup.ready = !!man.songs.length || !!man.ads.length;
-          lsSet('rmdm-backup-manifest', man);
-          P.backup.status = 'listo: ' + man.ads.length + ' comercial(es), ' + man.songs.length + ' canción(es), ' + Math.round(total / 1048576) + ' MB';
-          logEvent('respaldo_descargado', { version: man.version, bytes: total });
+        }).then(function (r) {
+          var eff = r.eff;
+          if (!eff.ads.length && !eff.songs.length) throw new Error(r.full ? 'el televisor no tiene espacio' : 'no se pudo descargar ningún archivo');
+          P.backup.manifest = eff; P.backup.ready = true;
+          lsSet('rmdm-backup-manifest', eff);
+          var partial = eff.ads.length < man.ads.length || eff.songs.length < man.songs.length;
+          P.backup.status = (partial ? 'parcial' + (r.full ? ' (sin espacio en el TV)' : '') + ': ' : 'listo: ') +
+            eff.ads.length + ' de ' + man.ads.length + ' comercial(es), ' + eff.songs.length + ' de ' + man.songs.length + ' canción(es)';
+          logEvent(partial ? 'respaldo_parcial' : 'respaldo_descargado', { version: man.version, bytes: total,
+            comerciales: eff.ads.length + '/' + man.ads.length, canciones: eff.songs.length + '/' + man.songs.length, sinEspacio: r.full });
           done(null);
         });
-      })['catch'](function (e) { P.backup.status = 'error al descargar: ' + (e && e.message); done(e); });
+      })['catch'](function (e) {
+        P.backup.status = 'error al descargar: ' + (e && e.message);
+        logEvent('respaldo_no_disponible', { motivo: P.backup.status });
+        done(e);
+      });
     });
   }
 
@@ -578,8 +600,15 @@
         bv.onended = function () { if (!B.current) nextLoop(); };
         var p = bv.play(); if (p && p['catch']) p['catch'](function (er) { videoProblem('no se pudo iniciar el video de fondo', er); });
       }
+      B.loopMiss = 0;
       if (old && old !== u) setTimeout(function () { try { URL.revokeObjectURL(old); } catch (e) { /* ignore */ } }, 5000);
-    })['catch'](function () { /* ignore */ });
+    })['catch'](function () {
+      // Ese comercial no está guardado en el TV: se intenta con el siguiente (una vuelta como máximo).
+      var man = P.backup.manifest;
+      if (token !== B.loopToken || !man) return;
+      B.loopMiss = (B.loopMiss || 0) + 1;
+      if (B.loopMiss < man.ads.length) { B.loopId = ad.id; nextLoop(); } else { B.loopMiss = 0; }
+    });
   }
   window.RMDM_video = { mode: function () { return videoMode; }, failed: function () { return B.videoFailed; }, B: B }; // pruebas
   window.RMDM_loop = function () { return { id: B.loopId, hasUrl: !!B.loopUrl }; }; // diagnóstico y pruebas
