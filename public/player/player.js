@@ -424,6 +424,7 @@
                     n++; if (LOCAL && !P.backup.active) showWait('Descargando música y comerciales…', n + ' de ' + items.length + ' archivos (solo la primera vez)');
                   }, function (e) {
                     failed++;
+                    if (isAd) P.backup.adErr = 'descarga comercial: ' + ((e && (e.name || e.message)) || 'error');
                     if (e && (e.name === 'QuotaExceededError' || /quota/i.test(e.message || ''))) full = true;
                   });
                 });
@@ -438,7 +439,7 @@
             });
           });
         }).then(function (r) {
-          var eff = r.eff;
+          var eff = r.eff; P.backup.adsTotal = man.ads.length;
           if (!eff.ads.length && !eff.songs.length) throw new Error(r.full ? 'el televisor no tiene espacio' : 'no se pudo descargar ningún archivo');
           P.backup.manifest = eff; P.backup.ready = true;
           lsSet('rmdm-backup-manifest', eff);
@@ -448,6 +449,10 @@
           logEvent(partial ? 'respaldo_parcial' : 'respaldo_descargado', { version: man.version, bytes: total,
             comerciales: eff.ads.length + '/' + man.ads.length, canciones: eff.songs.length + '/' + man.songs.length, sinEspacio: r.full });
           done(null);
+          // Si faltó algún comercial (descarga cortada), se reintenta en 2 minutos en vez de esperar una hora.
+          if (eff.ads.length < man.ads.length && !P.backup.adRetry) {
+            P.backup.adRetry = setTimeout(function () { P.backup.adRetry = null; downloadBackup(applyLocalSettings); }, 120000);
+          }
         });
       })['catch'](function (e) {
         P.backup.status = 'error al descargar: ' + (e && e.message);
@@ -561,6 +566,7 @@
   // Registra en el panel (Eventos recientes) por qué el TV no muestra el video, para poder diagnosticarlo.
   var lastVideoProblem = 0;
   function videoProblem(what, err) {
+    B.lastProblem = what + (err ? ' (' + (err.name || err.message) + ')' : '');
     if (now() - lastVideoProblem < 60000) return;
     lastVideoProblem = now();
     var bv = $('bvideo');
@@ -683,6 +689,17 @@
     var s = B.nowSong;
     $('npTitle').textContent = B.current ? 'Mensaje comercial' : (s ? (s.title || 'Música') : '');
     $('npArtist').textContent = !B.current && s && s.artist ? s.artist : '';
+    // Línea de diagnóstico abajo a la izquierda: dice por qué no se ve el comercial (para poder arreglarlo con una foto).
+    var why = $('npWhy');
+    if (why && np.className === 'screen') {
+      var man = P.backup.manifest;
+      var ua = (navigator.userAgent.match(/(Chrome|Firefox|Version)\/\d+/) || [''])[0];
+      why.textContent = 'Diag: comerciales ' + (man ? man.ads.length : 0) + '/' + (P.backup.adsTotal == null ? '?' : P.backup.adsTotal) +
+        ' | ' + (B.loopUrl ? 'video cargado' : 'sin video') + (B.videoFailed ? ', no avanza' : '') +
+        (bv.error ? ', error ' + bv.error.code : '') + ' | rs ' + bv.readyState + ' t ' + Math.round(bv.currentTime || 0) +
+        ' | modo ' + videoMode + (navigator.serviceWorker && navigator.serviceWorker.controller ? ' sw' : '') +
+        ' | ' + (B.lastProblem || P.backup.adErr || '-') + ' | ' + (P.backup.status || '') + ' | ' + ua;
+    }
   }
   setInterval(updateNowPlaying, 3000);
 

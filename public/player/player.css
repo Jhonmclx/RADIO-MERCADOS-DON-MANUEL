@@ -35,4 +35,5 @@ video { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit:
 .fs-btn.show, .fs-btn:focus { opacity: 1; }
 body.pointer { cursor: default; }
 
+.np-why { position: absolute; left: 2vh; right: 2vh; bottom: 1.5vh; z-index: 2; font-size: 1.8vh; opacity: .8; text-align: left; font-family: monospace; }
 .np-label { font-size: 2.2vh; letter-spacing: .4em; opacity: .75; margin-bottom: 1vh; }
