@@ -82,7 +82,7 @@ export function buildConfig(env = process.env) {
       backupDownloadDelaySeconds: num(env.PLAYER_BACKUP_DOWNLOAD_DELAY_SECONDS, 60),
       backupAfterSeconds: num(env.PLAYER_BACKUP_AFTER_SECONDS, 20),
     },
-    siteOfflineAfterSeconds: num(env.SITE_OFFLINE_AFTER_SECONDS, 30),
+    siteOfflineAfterSeconds: num(env.SITE_OFFLINE_AFTER_SECONDS, 90),
     rateLimit: {
       publicPerMinute: num(env.PUBLIC_RATE_PER_MINUTE, 600),
       loginPerWindow: num(env.LOGIN_ATTEMPTS_PER_15MIN, 8),
