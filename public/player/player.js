@@ -367,7 +367,7 @@
     }, 6000);
   }
   // En modo local se reporta cada 30 s (ahorra datos); con señal en vivo, cada 5 s.
-  function heartbeatLoop() { flush(); setTimeout(heartbeatLoop, LOCAL ? 15000 : ((P.cfg && P.cfg.heartbeatSeconds) || 5) * 1000); }
+  function heartbeatLoop() { flush(); setTimeout(heartbeatLoop, LOCAL ? 30000 : ((P.cfg && P.cfg.heartbeatSeconds) || 5) * 1000); }
   setInterval(function () { syncClock(3); }, (LOCAL ? 60 : 10) * 60 * 1000);
 
   var serverDownSince = null;
@@ -582,7 +582,9 @@
     var man = P.backup.manifest; if (!P.backup.active || !man || !man.ads.length) return;
     var ids = man.ads.map(function (a) { return a.id; });
     if (B.loopUrl && ids.indexOf(B.loopId) >= 0) {
-      $('bvideo').loop = man.ads.length < 2; // si cambió la cantidad de comerciales, se ajusta sin cortar el que se ve
+      // Si cambió la cantidad de comerciales, se ajusta sin cortar el que se ve. Nunca durante un comercial al aire:
+      // con loop activo no termina y no vuelve la música.
+      if (!B.current) $('bvideo').loop = man.ads.length < 2;
       return;
     }
     showLoop(man.ads[0]);
