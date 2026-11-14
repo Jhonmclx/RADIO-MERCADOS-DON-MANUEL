@@ -798,16 +798,31 @@ RENDER.reportes = async (el) => {
 RENDER.registros = async (el) => {
   const tabs = [['engine', 'Motor y errores'], ['asrun', 'Emisión (as-run)'], ['sites', 'Eventos de sedes'], ['audit', 'Acciones administrativas'], ['diagnostics', 'Diagnósticos de TV']];
   el.innerHTML = `<div class="tabs">${tabs.map(([k, t], i) => `<button data-t="${k}" class="${i === 0 ? 'active' : ''}">${t}</button>`).join('')}</div><div id="lg"></div>`;
+  // Nombres claros para las acciones del registro administrativo.
+  const ACTION = { login: 'Entró al panel', logout: 'Cerró sesión', login_fallido: 'Intento de entrada fallido', subir_comercial: 'Subió un comercial',
+    subir_cancion: 'Subió una canción', editar_comercial: 'Editó un comercial', activar_comercial: 'Activó un comercial', desactivar_comercial: 'Desactivó un comercial',
+    eliminar_comercial: 'Eliminó un comercial', borrar_comercial_sin_historial: 'Borró un comercial', reemplazar_comercial: 'Reemplazó un comercial',
+    archivar_cancion: 'Quitó una canción', editar_cancion: 'Editó una canción', cambiar_contrasena: 'Cambió su contraseña', editar_ajustes: 'Cambió la programación',
+    editar_horario: 'Cambió el horario', cambiar_horario: 'Cambió el horario', cambiar_reglas: 'Cambió la programación', editar_sede: 'Editó una sede',
+    ordenar_comerciales: 'Cambió el orden de los comerciales', ordenar_musica: 'Cambió el orden de la música', programar_cambio: 'Programó un cambio',
+    cancelar_cambio_programado: 'Canceló un cambio programado', exportar_reporte: 'Descargó un reporte', crear_anunciante: 'Creó un anunciante',
+    editar_anunciante: 'Editó un anunciante', activar_al_terminar_validacion: 'Activó un comercial (al terminar de procesar)',
+    pausar_musica: 'Pausó la música', reanudar_musica: 'Reanudó la música', pausar_publicidad: 'Pausó la publicidad', reanudar_publicidad: 'Reanudó la publicidad',
+    pausar_programacion: 'Pausó toda la programación', reanudar_programacion: 'Reanudó la programación', detener: 'Detuvo la señal', iniciar: 'Inició la emisión' };
+  const actionLabel = (a) => ACTION[a] || String(a || '').replace(/_/g, ' ');
+  let auditUser = '';
   const load = async (type) => {
-    const d = await api('GET', `/api/admin/logs?type=${type}`);
+    const d = await api('GET', `/api/admin/logs?type=${type}${type === 'audit' && auditUser ? `&user=${encodeURIComponent(auditUser)}` : ''}`);
     const rows = {
       engine: (r) => `<tr><td class="small">${fmtDT(r.at)}</td><td>${chip({ error: ['Error', 'err'], warn: ['Aviso', 'warn'], info: ['Info', 'info'] }[r.level] || [r.level, 'off'])}</td><td>${esc(r.message)}<div class="small muted mono">${esc(r.detail || '')}</div></td></tr>`,
       asrun: (r) => `<tr><td class="small">${fmtDT(r.actual_start)}</td><td>${esc(LABEL.kind[r.kind])}</td><td>${esc(r.title || LABEL.slate[r.slate] || '')}</td><td>${esc(r.status)}</td><td>${fmtDur(r.duration_ms)}</td><td class="small muted">${r.first_seq ?? ''}–${r.last_seq ?? ''} ${esc(r.note || '')}</td></tr>`,
       sites: (r) => `<tr><td class="small">${fmtDT(r.at)}</td><td>${esc(r.site_name)}</td><td>${esc(r.type)}</td><td class="small muted">${esc(r.detail || '')}</td></tr>`,
-      audit: (r) => `<tr><td class="small">${fmtDT(r.at)}</td><td>${esc(r.username || '—')}</td><td>${esc(r.action)}</td><td class="small muted">${esc(r.entity || '')} ${esc(r.entity_id || '')} ${esc(r.detail || '')}</td><td class="small muted">${esc(r.ip || '')}</td></tr>`,
+      audit: (r) => `<tr><td class="small">${fmtDT(r.at)}</td><td><b>${esc(r.username || '—')}</b></td><td>${esc(actionLabel(r.action))}</td><td class="small muted">${esc(r.entity || '')} ${esc(r.entity_id || '')} ${esc(r.detail || '')}</td><td class="small muted">${esc(r.ip || '')}</td></tr>`,
       diagnostics: (r) => `<tr><td class="small">${fmtDT(r.at)}</td><td>${esc(r.site_name || 'sin sede')}</td><td class="small mono" style="max-width:700px;white-space:pre-wrap">${esc(r.report)}</td></tr>`,
     }[type];
-    $('#lg', el).innerHTML = `<div class="card"><div class="table-wrap"><table><tbody>${d.items.map(rows).join('') || '<tr><td class="muted">Sin registros.</td></tr>'}</tbody></table></div></div>`;
+    const filter = type === 'audit' ? `<div class="form-grid" style="margin-bottom:12px"><label class="f">Usuario<select id="auser"><option value="">Todos</option>${(d.users || []).map((u) => `<option ${u === auditUser ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label></div>` : '';
+    $('#lg', el).innerHTML = `<div class="card">${filter}<div class="table-wrap"><table><tbody>${d.items.map(rows).join('') || '<tr><td class="muted">Sin registros.</td></tr>'}</tbody></table></div></div>`;
+    if (type === 'audit') $('#auser', el).addEventListener('change', (e) => { auditUser = e.target.value; load('audit').catch(fail); });
   };
   $$('.tabs button', el).forEach((b) => b.addEventListener('click', () => { $$('.tabs button', el).forEach((x) => x.classList.remove('active')); b.classList.add('active'); load(b.dataset.t).catch(fail); }));
   await load('engine');

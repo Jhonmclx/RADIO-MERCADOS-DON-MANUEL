@@ -549,7 +549,15 @@ export function registerAdminRoutes(router, app) {
   router.get('/api/admin/logs', auth, (req, res, ctx) => {
     const type = ctx.query.get('type') || 'engine';
     const limit = Math.min(Number(ctx.query.get('limit')) || 200, 1000);
-    if (type === 'audit') return json(res, 200, { items: db.all('SELECT * FROM audit_log ORDER BY id DESC LIMIT ?', limit) });
+    if (type === 'audit') {
+      // Filtro por usuario para revisar lo que hizo cada persona en el panel.
+      const user = ctx.query.get('user');
+      const items = user
+        ? db.all('SELECT * FROM audit_log WHERE username = ? ORDER BY id DESC LIMIT ?', user, limit)
+        : db.all('SELECT * FROM audit_log ORDER BY id DESC LIMIT ?', limit);
+      const users = db.all("SELECT DISTINCT username FROM audit_log WHERE username IS NOT NULL AND username <> '' ORDER BY username").map((r) => r.username);
+      return json(res, 200, { items, users });
+    }
     if (type === 'sites') return json(res, 200, { items: db.all('SELECT e.*, s.name AS site_name FROM site_events e JOIN sites s ON s.id = e.site_id ORDER BY e.at DESC LIMIT ?', limit) });
     if (type === 'asrun') return json(res, 200, { items: db.all(`SELECT p.id, p.kind, p.media_id, p.status, p.slate, p.actual_start, p.actual_end, p.duration_ms, p.first_seq, p.last_seq, p.note,
       CASE p.kind WHEN 'song' THEN (SELECT title FROM songs WHERE id = p.media_id) WHEN 'ad' THEN (SELECT name FROM ads WHERE id = p.media_id) END AS title
