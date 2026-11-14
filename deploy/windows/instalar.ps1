@@ -13,7 +13,7 @@
 #
 # Volver a ejecutarlo = actualizar a la ultima version (la musica y los datos se conservan).
 
-param([switch]$SinTailscale)
+param([switch]$SinTailscale, [string]$Token = '')
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -90,8 +90,19 @@ Detener-Radio
 
 # ---------------------------------------------------------------- 4. Programa de la radio
 Paso "Descargando la radio desde GitHub..."
+# Repositorio privado: se usa un token de solo lectura guardado en este PC (solo lo pueden leer los administradores).
+$TokenFile = Join-Path $Base 'github.token'
+if ($Token) {
+  Set-Content -Path $TokenFile -Value $Token.Trim() -Encoding ASCII
+  icacls $TokenFile /inheritance:r /grant:r 'SYSTEM:R' 'Administradores:R' 'Administrators:R' 2>$null | Out-Null
+}
 $zip = Join-Path $env:TEMP 'radio.zip'
-Invoke-WebRequest 'https://github.com/Jhonmclx/RADIO-MERCADOS-DON-MANUEL/archive/refs/heads/main.zip' -OutFile $zip
+if (Test-Path $TokenFile) {
+  $tk = (Get-Content $TokenFile -Raw).Trim()
+  Invoke-WebRequest 'https://api.github.com/repos/Jhonmclx/RADIO-MERCADOS-DON-MANUEL/zipball/main' -Headers @{ Authorization = "Bearer $tk"; 'User-Agent' = 'RadioDonManuel' } -OutFile $zip
+} else {
+  Invoke-WebRequest 'https://github.com/Jhonmclx/RADIO-MERCADOS-DON-MANUEL/archive/refs/heads/main.zip' -OutFile $zip
+}
 $tmp = Join-Path $env:TEMP 'radio-src'
 if (Test-Path $tmp) { Remove-Item $tmp -Recurse -Force }
 Expand-Archive $zip -DestinationPath $tmp -Force
