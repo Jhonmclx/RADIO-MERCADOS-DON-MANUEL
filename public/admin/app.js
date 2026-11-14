@@ -635,7 +635,7 @@ RENDER.musica = async (el) => {
   const list = async () => {
     const d = await api('GET', '/api/admin/music');
     const total = d.songs.filter((s) => s.enabled && s.status === 'listo').reduce((a, s) => a + (s.durationMs || 0), 0);
-    $('#mlist', el).innerHTML = `<p class="small muted">${d.songs.length} canciones · duración habilitada: ${fmtDur(total)}</p>
+    $('#mlist', el).innerHTML = `<div class="btn-row" style="justify-content:space-between;align-items:center"><p class="small muted">${d.songs.length} canciones · duración habilitada: ${fmtDur(total)}</p>${d.songs.length ? '<button class="btn sm ghost-danger" id="delall">Quitar toda la música</button>' : ''}</div>
       <div class="table-wrap"><table><thead><tr><th></th><th>Título</th><th>Artista</th><th>Duración</th><th>Estado</th><th>Habilitada</th><th>Respaldo</th><th></th></tr></thead><tbody id="mbody">
       ${d.songs.map((s) => `<tr data-id="${s.id}"><td><span class="handle">⠿</span></td>
         <td><b>${esc(s.title)}</b>${s.id === d.onAirSongId ? ' <span class="chip live">al aire</span>' : ''}${s.error ? `<div class="small" style="color:var(--rojo)">${esc(s.error)}</div>` : ''}</td>
@@ -655,6 +655,10 @@ RENDER.musica = async (el) => {
         <div class="actions"><button class="btn" data-close>Cancelar</button><button class="btn primary" id="ok">Guardar</button></div>`);
       $('#ok', m.el).addEventListener('click', async () => { await save(s, { title: $('#st', m.el).value, artist: $('#sa', m.el).value }); m.close(); });
     }));
+    $('#delall', el)?.addEventListener('click', async () => {
+      if (!(await confirmDialog('Quitar toda la música', `Se quitarán las <b>${d.songs.length} canciones</b> y se borrarán sus archivos. Los televisores dejarán de reproducirlas. No se puede deshacer: habría que subirlas de nuevo.`, { confirmText: 'Quitar todo', danger: true, requireWord: 'BORRAR' }))) return;
+      try { const r = await api('POST', '/api/admin/music/archive-all', { confirm: 'BORRAR' }); toast(r.message); list(); } catch (e) { fail(e); }
+    });
     $$('[data-arch]', el).forEach((b) => b.addEventListener('click', async () => {
       if (!(await confirmDialog('Quitar canción', 'La canción deja de sonar y desaparece de la lista. El registro de emisiones se conserva.', { confirmText: 'Quitar', danger: true }))) return;
       try { await api('POST', `/api/admin/music/${b.dataset.arch}/archive`); toast('Canción retirada.'); list(); } catch (e) { fail(e); }
@@ -802,7 +806,7 @@ RENDER.registros = async (el) => {
   const ACTION = { login: 'Entró al panel', logout: 'Cerró sesión', login_fallido: 'Intento de entrada fallido', subir_comercial: 'Subió un comercial',
     subir_cancion: 'Subió una canción', editar_comercial: 'Editó un comercial', activar_comercial: 'Activó un comercial', desactivar_comercial: 'Desactivó un comercial',
     eliminar_comercial: 'Eliminó un comercial', borrar_comercial_sin_historial: 'Borró un comercial', reemplazar_comercial: 'Reemplazó un comercial',
-    archivar_cancion: 'Quitó una canción', editar_cancion: 'Editó una canción', cambiar_contrasena: 'Cambió su contraseña', editar_ajustes: 'Cambió la programación',
+    archivar_cancion: 'Quitó una canción', quitar_toda_la_musica: 'Quitó TODA la música', editar_cancion: 'Editó una canción', cambiar_contrasena: 'Cambió su contraseña', editar_ajustes: 'Cambió la programación',
     editar_horario: 'Cambió el horario', cambiar_horario: 'Cambió el horario', cambiar_reglas: 'Cambió la programación', editar_sede: 'Editó una sede',
     ordenar_comerciales: 'Cambió el orden de los comerciales', ordenar_musica: 'Cambió el orden de la música', programar_cambio: 'Programó un cambio',
     cancelar_cambio_programado: 'Canceló un cambio programado', exportar_reporte: 'Descargó un reporte', crear_anunciante: 'Creó un anunciante',

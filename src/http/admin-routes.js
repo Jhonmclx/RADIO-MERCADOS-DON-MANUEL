@@ -448,6 +448,20 @@ export function registerAdminRoutes(router, app) {
     const r = changed(ctx, 'ordenar_musica', 'song', null, { total: ids.length });
     json(res, 200, { ok: true, appliedToNext: r.replanned });
   });
+  // Quitar TODA la música de una vez (pide escribir BORRAR). Se borran los archivos para liberar espacio,
+  // excepto los que están en la programación en curso (se liberan solos más adelante); los reportes se conservan.
+  router.post('/api/admin/music/archive-all', mutate, async (req, res, ctx) => {
+    const b = await readJson(req);
+    if (b.confirm !== 'BORRAR') throw new HttpError(400, 'Para quitar toda la música escriba BORRAR.');
+    const rows = db.all('SELECT id FROM songs WHERE archived = 0');
+    const busy = new Set(db.all("SELECT media_id FROM program_items WHERE kind = 'song' AND status IN ('preparando','listo','al_aire')").map((r) => r.media_id));
+    db.tx(() => { for (const r of rows) db.run('UPDATE songs SET archived = 1, enabled = 0, updated_at = ? WHERE id = ?', Date.now(), r.id); });
+    let freed = 0;
+    for (const r of rows) if (!busy.has(r.id)) { try { fs.rmSync(library.songDir(r.id), { recursive: true, force: true }); freed++; } catch { /* ignore */ } }
+    const c = changed(ctx, 'quitar_toda_la_musica', 'song', null, { total: rows.length });
+    json(res, 200, { ok: true, removed: rows.length, filesDeleted: freed, appliedToNext: c.replanned, message: `Se quitaron ${rows.length} canciones.` });
+  });
+
   router.post('/api/admin/music/:id/archive', mutate, (req, res, ctx) => {
     const id = int(ctx.params.id, { name: 'id', min: 1 });
     db.run('UPDATE songs SET archived = 1, enabled = 0, updated_at = ? WHERE id = ?', Date.now(), id);
