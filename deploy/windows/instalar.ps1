@@ -224,12 +224,16 @@ if (-not $SinTailscale) {
   $dns = ((& $ts status --json) | ConvertFrom-Json).Self.DNSName.TrimEnd('.')
   if ($dns) {
     $url = "https://$dns"
-    $l = Get-Content $EnvGuardado | Where-Object { $_ -notmatch '^PUBLIC_BASE_URL=' }
-    $l += "PUBLIC_BASE_URL=$url"
-    Set-Content -Path $EnvGuardado -Value $l -Encoding ASCII
-    Copy-Item $EnvGuardado (Join-Path $App '.env') -Force
-    Detener-Radio
-    Start-ScheduledTask -TaskName 'RadioDonManuel'
+    # Solo se reinicia la radio si la dirección cambió (evita un reinicio doble en cada actualización).
+    $antes = (Get-Content $EnvGuardado | Where-Object { $_ -match '^PUBLIC_BASE_URL=' }) -replace '^PUBLIC_BASE_URL=', ''
+    if ($antes -ne $url) {
+      $l = Get-Content $EnvGuardado | Where-Object { $_ -notmatch '^PUBLIC_BASE_URL=' }
+      $l += "PUBLIC_BASE_URL=$url"
+      Set-Content -Path $EnvGuardado -Value $l -Encoding ASCII
+      Copy-Item $EnvGuardado (Join-Path $App '.env') -Force
+      Detener-Radio
+      Start-ScheduledTask -TaskName 'RadioDonManuel'
+    }
     Write-Host ""
     Write-Host "================================================================" -ForegroundColor Green
     Write-Host " RADIO MERCADO DON MANUEL instalada en este PC"

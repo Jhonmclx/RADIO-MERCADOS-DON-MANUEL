@@ -17,6 +17,20 @@ const MIME_EXT = {
   'video/mp4': '.mp4', 'video/quicktime': '.mov', 'video/webm': '.webm', 'video/x-matroska': '.mkv', 'video/3gpp': '.3gp', 'video/x-msvideo': '.avi', 'video/mpeg': '.mpg',
 };
 
+/**
+ * Limpia el nombre de una canción que viene del nombre del archivo: quita el prefijo de la papelera de Android
+ * (".trashed-1796139548-") y etiquetas como "(MP3 160K)", "(Official Video)", "(Video Oficial)", "(Lyrics)".
+ */
+export function cleanSongTitle(t) {
+  const out = String(t || '')
+    .replace(/^\.?trashed-\d+-/i, '')
+    .replace(/\s*[([]\s*mp3\s*\d+\s*k(bps)?\s*[)\]]/gi, '')
+    .replace(/\s*[([]\s*(official\s+(music\s+)?video|video\s+oficial|official\s+audio|audio\s+oficial|lyrics?|lyric\s+video|letra|visualizer)\s*[)\]]/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return out || String(t || '').trim();
+}
+
 export class UploadError extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
 }
@@ -137,6 +151,7 @@ export class MediaLibrary extends EventEmitter {
   }
 
   createSong({ tmp, size, sha256, ext }, { title, artist, originalName }) {
+    title = cleanSongTitle(title);
     const now = Date.now();
     const pos = (this.db.get('SELECT COALESCE(MAX(position), 0) AS p FROM songs').p || 0) + 1;
     const r = this.db.run(`INSERT INTO songs (title, artist, status, enabled, position, original_name, original_sha256, size_bytes, created_at, updated_at)

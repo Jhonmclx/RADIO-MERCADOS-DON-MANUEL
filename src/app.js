@@ -3,7 +3,7 @@ import http from 'node:http';
 import path from 'node:path';
 import fs from 'node:fs';
 import { openDatabase } from './db/index.js';
-import { MediaLibrary } from './media/library.js';
+import { MediaLibrary, cleanSongTitle } from './media/library.js';
 import { Engine } from './engine/engine.js';
 import { Reports } from './reports/reports.js';
 import { Router, HttpError, json, send, sendFile, safeJoin, clientIp } from './http/core.js';
@@ -47,6 +47,11 @@ export async function createApp(cfg, { logToConsole = true } = {}) {
   persist.log = log;
   if (persist.enabled) { try { await persist.restoreMedia(db); } catch (e) { log('warn', 'No se pudieron recuperar los archivos guardados', { error: e.message }); } }
   const library = new MediaLibrary({ cfg, db, log });
+  // Limpia los nombres de canciones ya subidas (prefijo ".trashed-…" del celular, "(MP3 160K)", "(Official Video)"…).
+  for (const s of db.all('SELECT id, title FROM songs')) {
+    const t = cleanSongTitle(s.title);
+    if (t !== s.title) db.run('UPDATE songs SET title = ? WHERE id = ?', t, s.id);
+  }
   const engine = new Engine({ cfg, db, library, log });
   const reports = new Reports({ db, cfg, engine });
   const sessions = new Sessions({ db, cfg });

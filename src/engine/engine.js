@@ -79,7 +79,8 @@ export class Engine extends EventEmitter {
         this.current.interruptedReason = `Reinicio del servicio: ${skipped} segmento(s) (${Math.round(skipped * this.cfg.hls.segmentSeconds)} s) no se emitieron`;
       }
       this.publisher.markDiscontinuity();
-      this.log('warn', `Motor recuperado tras reinicio: se reanuda "${this.current.title}" en el segmento ${resumeAt + 1} de ${segments.length}.`, { omitidos: skipped });
+      // Normal al prender el PC o actualizar: es informativo, no un error.
+      this.log(skipped > 3 ? 'warn' : 'info', `Motor recuperado tras reinicio: se reanuda "${this.current.title}" en el segmento ${resumeAt + 1} de ${segments.length}.`, { omitidos: skipped });
     }
     // 2) Elementos preparados pero no emitidos: se descartan y el planificador vuelve al estado previo.
     const pending = this.db.all("SELECT * FROM program_items WHERE status IN ('preparando', 'listo') ORDER BY id");
