@@ -80,10 +80,10 @@ function Detener-Radio {
   Stop-ScheduledTask -TaskName 'RadioDonManuel' -ErrorAction SilentlyContinue
   Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -like '*server.js*' -and $_.CommandLine -like '*RadioDonManuel*' -or $_.ExecutablePath -like "$Tools*" } |
-    ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }
+    ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate -ErrorAction SilentlyContinue | Out-Null }
   Get-CimInstance Win32_Process -Filter "Name='cmd.exe'" -ErrorAction SilentlyContinue |
     Where-Object { $_.CommandLine -like '*iniciar-radio.cmd*' } |
-    ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate | Out-Null }
+    ForEach-Object { Invoke-CimMethod -InputObject $_ -MethodName Terminate -ErrorAction SilentlyContinue | Out-Null }
   Start-Sleep -Seconds 2
 }
 Detener-Radio
