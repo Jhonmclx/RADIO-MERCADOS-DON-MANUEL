@@ -537,11 +537,12 @@
       videoUrl(ad.url).then(function (u) {
         B.urls.push(u);
         var rec = { id: uuid(), adId: ad.id, startedAt: serverNow(), endedAt: null, completed: false };
-        B.current = rec;
+        B.current = rec; B.adStartedAt = now(); B.adMaxMs = (ad.durationMs || 60000) + 20000;
+        bv.onerror = function () { abortAd('error ' + (bv.error && bv.error.code)); };
         bv.loop = false; bv.src = u; bv.currentTime = 0; bv.muted = !P.soundOn;
         bv.onended = function () {
           rec.endedAt = serverNow(); rec.completed = true; P.backupPlays.push(rec); lsSet('rmdm-bplays-' + SLUG, P.backupPlays);
-          B.current = null; bv.onended = null;
+          B.current = null; bv.onended = null; bv.onerror = null;
           var pm = P.backup.manifest;
           if (pm.musicPaused || !pm.songs.length) { nextBackupItem(); return; } // solo comerciales: uno tras otro, sin volver al fondo
           // De vuelta a la música: el fondo sigue con el comercial que va DESPUÉS del que acaba de salir.
@@ -622,6 +623,21 @@
   window.RMDM_loop = function () { return { id: B.loopId, hasUrl: !!B.loopUrl }; }; // diagnóstico y pruebas
 
   // Aplica de inmediato "Pausar la música" / "Pausar publicidad" del panel en modo local.
+  // Si el comercial no se puede reproducir (error del TV o se traba), nunca termina y la radio quedaba en silencio
+  // para siempre esperando. Ahora se salta y vuelve la música.
+  function abortAd(why) {
+    if (!B.current) return;
+    var bv = $('bvideo');
+    videoProblem('comercial saltado: ' + why);
+    logEvent('comercial_saltado', { motivo: why, adId: B.current.adId });
+    B.current = null; bv.onended = null; bv.onerror = null;
+    try { bv.pause(); bv.muted = true; } catch (e) { /* ignore */ }
+    B.songsSince = 0; B.loopUrl = null; B.loopId = null;
+    var man = P.backup.manifest;
+    if (man && man.songs.length && !man.musicPaused) { nextBackupItem(); refreshLoop(); }
+    else setTimeout(nextBackupItem, 5000); // solo comerciales: reintenta sin quedar en un ciclo rápido
+  }
+
   function applyLocalSettings() {
     var man = P.backup.manifest; if (!P.backup.active || !man) return;
     refreshLoop();
@@ -650,8 +666,10 @@
     var moving = !bv.error && !bv.paused && t !== B.vLastT;
     B.vLastT = t;
     if (moving) { B.vStuck = 0; B.videoFailed = false; return; }
+    if (B.current && B.adStartedAt && now() - B.adStartedAt > B.adMaxMs) { abortAd('no terminó a tiempo'); return; }
     if (bv.paused && !bv.error) return; // en pausa a propósito (p. ej. esperando la pulsación de sonido)
     B.vStuck++;
+    if (B.current && B.vStuck >= 3) { abortAd('el video no avanza'); return; }
     if (B.vStuck < 3) return;
     B.videoFailed = true;
     videoProblem('el video no avanza (modo ' + videoMode + ')');
