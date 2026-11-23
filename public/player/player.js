@@ -528,7 +528,7 @@
     var ba = $('baudio'); var bv = $('bvideo');
     var songsOk = man.songs.length && !man.musicPaused;
     var adsOk = man.ads.length && !man.adsPaused;
-    if (!songsOk && !adsOk) { B.idle = true; try { ba.pause(); } catch (e) { /* ignore */ } return; } // se reanuda con applyLocalSettings
+    if (!songsOk && !adsOk) { B.idle = true; B.songPlaying = false; try { ba.pause(); } catch (e) { /* ignore */ } return; } // se reanuda con applyLocalSettings
     B.idle = false;
     if (adsOk && (B.songsSince >= n || !songsOk)) {
       // Bloque comercial desde el respaldo: video desde el inicio, con su audio.
@@ -598,6 +598,19 @@
     showLoop(man.ads[(i + 1) % man.ads.length]);
   }
 
+  // Algunos navegadores de TV pausan la música (<audio>) cuando empieza a reproducirse otro video, aunque esté en
+  // silencio. Con un solo comercial nunca pasaba (el fondo se repite sin reiniciarse); con dos o más, el fondo cambia
+  // de comercial y la música se quedaba callada. Si la música se pausa sin que nosotros lo pidamos, se reanuda.
+  function keepMusic() {
+    var ba = $('baudio');
+    if (!P.backup.active || !B.songPlaying || B.current || B.idle || ba.ended || !ba.paused) return;
+    var p = ba.play();
+    if (p && p['catch']) p['catch'](function () { askForSound(); });
+    logEvent('musica_reanudada', null);
+  }
+  $('baudio').addEventListener('pause', function () { setTimeout(keepMusic, 400); });
+  setInterval(keepMusic, 5000);
+
   function showLoop(ad) {
     var token = B.loopToken = (B.loopToken || 0) + 1;
     videoUrl(ad.url).then(function (u) {
@@ -608,6 +621,7 @@
         bv.loop = !man || man.ads.length < 2; bv.muted = true; bv.src = u;
         bv.onended = function () { if (!B.current) nextLoop(); };
         var p = bv.play(); if (p && p['catch']) p['catch'](function (er) { videoProblem('no se pudo iniciar el video de fondo', er); });
+        setTimeout(keepMusic, 800);
       }
       B.loopMiss = 0;
       if (old && old !== u) setTimeout(function () { try { URL.revokeObjectURL(old); } catch (e) { /* ignore */ } }, 5000);
