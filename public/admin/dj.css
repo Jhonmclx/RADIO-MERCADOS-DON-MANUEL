@@ -1,0 +1,6 @@
+/* Panel DJ — Radio Mercado Don Manuel (diseño v1). Fuentes del sistema: la CSP del panel no permite fuentes externas. */
+body{margin:0;background:#060810}
+a{color:#FF8C00}a:hover{color:#FFB347}
+button{font-family:inherit;cursor:pointer}
+input[type=range]{accent-color:#FF2D9B}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}

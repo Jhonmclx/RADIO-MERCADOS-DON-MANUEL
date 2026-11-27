@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel DJ — Radio Mercado Don Manuel</title>
+
+<link rel="stylesheet" href="/admin/dj.css">
+
+</head>
+<body>
+<template id="tpl">
+<div style="min-height: 100vh; background: #060810; color: #E6EAF0; font-family: Inter, system-ui, sans-serif; padding: 14px; box-sizing: border-box">
+<div style="max-width: 1480px; margin: 0 auto; display: flex; flex-direction: column; gap: 10px">
+
+<header style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px; background: #101521; border: 1px solid #243049; border-radius: 10px; padding: 8px 14px">
+<div style="display: flex; align-items: center; gap: 10px; flex: 0 0 auto">
+<div style="width: 38px; height: 38px; border-radius: 9px; background: #FF8C00; color: #120C02; display: flex; align-items: center; justify-content: center; font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px">DM</div>
+<div>
+<div style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 16px; letter-spacing: 0.01em">RADIO MERCADO DON MANUEL</div>
+<div style="font-size: 11px; color: #8A94A3; letter-spacing: 0.12em">CONSOLA DJ · PANEL ADMIN</div>
+</div>
+</div>
+<span style="display: inline-flex; align-items: center; gap: 7px; background: #3D0A16; border: 1px solid #8A1030; color: #FF5C7C; border-radius: 6px; padding: 5px 10px; font-size: 12px; font-weight: 800; letter-spacing: 0.1em"><span style="width: 8px; height: 8px; border-radius: 50%; background: #FF2D55; box-shadow: 0 0 8px #FF2D55"></span>AL AIRE</span>
+<div style="display: flex; flex-direction: column; gap: 3px; flex: 1 1 260px; min-width: 200px">
+<sc-for list="{{ master }}" as="m">
+<div style="display: flex; align-items: center; gap: 6px"><span class="mono" style="font-size: 10px; color: #8A94A3; width: 10px">{{ m.ch }}</span><div style="display: flex; gap: 2px; flex: 1"><sc-for list="{{ m.segs }}" as="s"><span style="flex: 1; height: 7px; border-radius: 1px; background: {{ s.c }}"></span></sc-for></div></div>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+<div style="background: #18202E; border: 1px solid #243049; border-radius: 6px; padding: 4px 10px; text-align: center"><div style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em">SEDES</div><div class="mono" style="font-size: 14px; color: #3DFF7F">[N]/[N]</div></div>
+<div style="background: #18202E; border: 1px solid #243049; border-radius: 6px; padding: 4px 10px; text-align: center"><div style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em">RETRASO TV</div><div class="mono" style="font-size: 14px">~20 s</div></div>
+<div style="background: #18202E; border: 1px solid #243049; border-radius: 6px; padding: 4px 10px; text-align: center"><div style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em">HORA</div><div class="mono" style="font-size: 14px">11:23:08</div></div>
+<button onClick="{{ toggleAuto }}" style="display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border-radius: 8px; border: 1px solid {{ autoBorder }}; background: {{ autoBg }}; color: {{ autoFg }}; font-size: 13px; font-weight: 800; letter-spacing: 0.06em"><span style="width: 9px; height: 9px; border-radius: 50%; background: {{ autoDot }}"></span>AUTO-DJ {{ autoLabel }}</button>
+</div>
+</header>
+
+<section style="background: #0B0E12; border: 1px solid #243049; border-radius: 10px; padding: 8px; display: flex; flex-direction: column; gap: 6px; position: relative">
+<sc-for list="{{ decks }}" as="d">
+<div style="height: 70px; background: #101521; border-radius: 6px; position: relative; overflow: hidden; display: flex; align-items: center; gap: 1px; padding: 0 2px">
+<sc-for list="{{ d.zoom }}" as="b"><span style="flex: 1 1 0; min-width: 1px; height: {{ b.h }}; background: {{ b.c }}; border-radius: 1px"></span></sc-for>
+<sc-for list="{{ grid }}" as="g"><span style="position: absolute; top: 0; bottom: 0; left: {{ g.x }}; width: 1px; background: {{ g.c }}"></span></sc-for>
+<span class="mono" style="position: absolute; left: 8px; top: 5px; font-size: 10px; font-weight: 700; color: {{ d.color }}; letter-spacing: 0.1em">{{ d.id }} · {{ d.bpm }} BPM</span>
+</div>
+</sc-for>
+<span style="position: absolute; top: 4px; bottom: 4px; left: 50%; width: 2px; background: #FF2D9B; box-shadow: 0 0 10px #FF2D9B"></span>
+</section>
+
+<section style="display: flex; flex-wrap: wrap; gap: 10px">
+
+<sc-for list="{{ decks }}" as="d">
+<div style="order: {{ d.order }}; flex: 1 1 440px; min-width: 0; background: #101521; border: 1px solid #243049; border-top: 3px solid {{ d.color }}; border-radius: 10px; box-shadow: 0 0 28px {{ d.glow }}; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px">
+<div style="min-width: 0">
+<div style="font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: {{ d.color }}">{{ d.label }}</div>
+<div style="font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ d.title }}</div>
+<div style="font-size: 13px; color: #8A94A3">{{ d.artist }}</div>
+</div>
+<div style="display: flex; gap: 6px; flex: 0 0 auto">
+<div style="background: #060810; border: 1px solid #243049; border-radius: 6px; padding: 4px 10px; text-align: right"><div style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em">BPM</div><div class="mono" style="font-size: 20px; font-weight: 700; color: {{ d.color }}; text-shadow: 0 0 10px {{ d.color }}">{{ d.bpm }}</div></div>
+<div style="background: #060810; border: 1px solid #243049; border-radius: 6px; padding: 4px 10px; text-align: right"><div style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em">TONO</div><div class="mono" style="font-size: 20px; font-weight: 700">{{ d.key }}</div></div>
+</div>
+</div>
+<div style="height: 26px; background: #060810; border-radius: 4px; display: flex; align-items: center; gap: 1px; padding: 0 3px; position: relative">
+<sc-for list="{{ d.overview }}" as="b"><span style="flex: 1 1 0; min-width: 1px; height: {{ b.h }}; background: {{ b.c }}"></span></sc-for>
+<span style="position: absolute; top: 0; bottom: 0; left: {{ d.progress }}; width: 2px; background: #FFFFFF"></span>
+</div>
+<div style="display: flex; justify-content: space-between" class="mono"><span style="font-size: 13px; color: #8A94A3">{{ d.elapsed }}</span><span style="font-size: 15px; font-weight: 700; color: {{ d.color }}">{{ d.remain }}</span></div>
+
+<div style="display: flex; gap: 14px; align-items: center; justify-content: center">
+<div style="width: 210px; height: 210px; border-radius: 50%; background: #060810; border: 2px solid #232A34; display: flex; align-items: center; justify-content: center; position: relative; flex: 0 0 auto">
+<div style="position: absolute; inset: 8px; border-radius: 50%; border: 3px solid {{ d.color }}; box-shadow: 0 0 18px {{ d.color }}, inset 0 0 14px {{ d.glow }}"></div>
+<div style="position: absolute; inset: 22px; border-radius: 50%; background: #11161C; border: 1px solid #232A34"></div>
+<div style="position: absolute; inset: 0; transform: rotate({{ d.rot }})"><span style="position: absolute; left: 50%; top: 10px; width: 4px; height: 26px; margin-left: -2px; border-radius: 2px; background: #FFFFFF"></span></div>
+<div style="position: relative; width: 92px; height: 92px; border-radius: 50%; background: #1A2028; border: 1px solid #33405A; display: flex; flex-direction: column; align-items: center; justify-content: center">
+<span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 20px; color: {{ d.color }}">{{ d.id }}</span>
+<span class="mono" style="font-size: 11px; color: #8A94A3">{{ d.pitch }}</span>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+<span style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em">PITCH</span>
+<div style="width: 10px; height: 170px; background: #060810; border: 1px solid #232A34; border-radius: 5px; position: relative">
+<span style="position: absolute; left: -6px; right: -6px; top: 50%; height: 1px; background: #3A4350"></span>
+<span style="position: absolute; left: -9px; width: 28px; height: 14px; top: {{ d.pitchTop }}; border-radius: 3px; background: #C9D1DC; border: 1px solid #FFFFFF"></span>
+</div>
+</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px">
+<button style="min-height: 44px; border-radius: 8px; border: 1px solid #33405A; background: #18202E; color: #E6EAF0; font-weight: 800; font-size: 13px; letter-spacing: 0.08em">CUE</button>
+<button onClick="{{ d.togglePlay }}" aria-label="Reproducir o pausar" style="min-height: 44px; border-radius: 8px; border: 1px solid {{ d.color }}; background: {{ d.playBg }}; color: {{ d.playFg }}; box-shadow: 0 0 16px {{ d.glow }}; font-weight: 800; font-size: 13px; letter-spacing: 0.08em">{{ d.playLabel }}</button>
+<button style="min-height: 44px; border-radius: 8px; border: 1px solid #33405A; background: #18202E; color: #E6EAF0; font-weight: 800; font-size: 13px; letter-spacing: 0.08em">SYNC</button>
+</div>
+<div>
+<div style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em; margin-bottom: 5px">PUNTOS DE ENTRADA</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px">
+<sc-for list="{{ d.pads }}" as="p"><button style="min-height: 40px; border-radius: 6px; border: 1px solid {{ p.border }}; background: {{ p.bg }}; color: {{ p.fg }}; font-size: 11px; font-weight: 700">{{ p.label }}</button></sc-for>
+</div>
+</div>
+<div style="display: flex; gap: 6px; align-items: center">
+<span style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em; margin-right: 4px">LOOP</span>
+<sc-for list="{{ loops }}" as="l"><button class="mono" style="flex: 1; min-height: 34px; border-radius: 6px; border: 1px solid #33405A; background: #18202E; color: #C9D1DC; font-size: 12px; font-weight: 700">{{ l }}</button></sc-for>
+</div>
+</div>
+</sc-for>
+
+<div style="order: 1; flex: 0 1 340px; min-width: 300px; background: #101521; border: 1px solid #243049; border-top: 3px solid #FF2D9B; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 10px; font-weight: 800; letter-spacing: 0.14em; text-align: center; color: #C9D1DC">MEZCLADOR</div>
+<div style="display: flex; gap: 8px; justify-content: center">
+<sc-for list="{{ channels }}" as="c">
+<div style="order: {{ c.order }}; display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1">
+<sc-for list="{{ c.knobs }}" as="k">
+<div style="display: flex; flex-direction: column; align-items: center">
+<svg width="40" height="40" viewBox="0 0 40 40" role="img" aria-label="{{ k.label }}"><circle cx="20" cy="20" r="15" fill="none" stroke="#232A34" stroke-width="4" stroke-dasharray="70.7 94.2" transform="rotate(135 20 20)"></circle><circle cx="20" cy="20" r="15" fill="none" stroke="{{ c.color }}" stroke-width="4" stroke-dasharray="{{ k.dash }}" transform="rotate(135 20 20)"></circle><circle cx="20" cy="20" r="9" fill="#1A2028" stroke="#33405A"></circle></svg>
+<span style="font-size: 9px; color: #8A94A3; letter-spacing: 0.08em">{{ k.label }}</span>
+</div>
+</sc-for>
+</div>
+</sc-for>
+<sc-for list="{{ channels }}" as="c">
+<div style="order: {{ c.midOrder }}; display: flex; gap: 6px; align-items: flex-end; padding-top: 10px">
+<div style="display: flex; flex-direction: column; gap: 2px">
+<sc-for list="{{ c.vu }}" as="s"><span style="width: 8px; height: 9px; border-radius: 1px; background: {{ s.c }}; box-shadow: 0 0 4px {{ s.c }}"></span></sc-for>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 4px">
+<div style="width: 8px; height: 190px; background: #060810; border: 1px solid #232A34; border-radius: 4px; position: relative">
+<span style="position: absolute; left: -12px; width: 32px; height: 18px; top: {{ c.fader }}; border-radius: 3px; background: #C9D1DC; border: 1px solid #FFFFFF"></span>
+</div>
+<span style="font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px; color: {{ c.color }}">{{ c.id }}</span>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="background: #060810; border: 1px solid #243049; border-radius: 8px; padding: 8px 10px">
+<label for="cf" style="display: flex; justify-content: space-between; font-size: 10px; letter-spacing: 0.12em; color: #8A94A3"><span style="color: #FF8C00; font-weight: 800">A</span>CROSSFADER<span style="color: #00E5FF; font-weight: 800">B</span></label>
+<input id="cf" type="range" min="0" max="100" value="{{ cross }}" onInput="{{ setCross }}" style="width: 100%; height: 28px">
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px">
+<div style="background: #060810; border: 1px solid #243049; border-radius: 8px; padding: 6px 10px"><div style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em">MEZCLA</div><div class="mono" style="font-size: 15px; font-weight: 700">8 s · suave</div></div>
+<div style="background: #060810; border: 1px solid #243049; border-radius: 8px; padding: 6px 10px"><div style="font-size: 9px; color: #8A94A3; letter-spacing: 0.12em">MASTER</div><div class="mono" style="font-size: 15px; font-weight: 700">−3.0 dB</div></div>
+</div>
+<button style="min-height: 50px; border-radius: 8px; border: none; background: #FF2D9B; color: #FFFFFF; box-shadow: 0 0 22px rgba(255,45,155,0.55); font-size: 15px; font-weight: 800; letter-spacing: 0.08em">MEZCLAR AHORA  A → B</button>
+</div>
+</section>
+
+<section style="display: flex; flex-wrap: wrap; gap: 10px">
+<div style="flex: 1 1 320px; min-width: 0; background: #101521; border: 1px solid #243049; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: #C9D1DC">EFECTOS</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px">
+<sc-for list="{{ fx }}" as="f"><button onClick="{{ f.toggle }}" style="min-height: 52px; border-radius: 8px; border: 1px solid {{ f.border }}; background: {{ f.bg }}; color: {{ f.fg }}; box-shadow: 0 0 14px {{ f.glow }}; font-size: 12px; font-weight: 800; letter-spacing: 0.06em">{{ f.label }}</button></sc-for>
+</div>
+<label for="fxmix" style="font-size: 10px; color: #8A94A3; letter-spacing: 0.12em">CANTIDAD DE EFECTO</label>
+<input id="fxmix" type="range" min="0" max="100" value="40" style="width: 100%">
+</div>
+<div style="flex: 1 1 360px; min-width: 0; background: #101521; border: 1px solid #243049; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: #C9D1DC">SAMPLER · JINGLES Y CUÑAS</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px">
+<sc-for list="{{ sampler }}" as="s"><button style="min-height: 48px; border-radius: 8px; border: 1px solid {{ s.border }}; background: {{ s.bg }}; color: #F3E6FF; font-size: 11px; font-weight: 700; padding: 4px; box-shadow: 0 0 10px {{ s.glow }}">{{ s.label }}</button></sc-for>
+</div>
+</div>
+<div style="flex: 1 1 320px; min-width: 0; background: #101521; border: 1px solid #243049; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: #C9D1DC">REGLAS DEL AUTO-DJ</div>
+<sc-for list="{{ rules }}" as="r">
+<div style="display: flex; justify-content: space-between; align-items: center; background: #060810; border: 1px solid #243049; border-radius: 6px; padding: 7px 10px"><span style="font-size: 12px; color: #C9D1DC">{{ r.k }}</span><span class="mono" style="font-size: 12px; font-weight: 700; color: #FF8C00">{{ r.v }}</span></div>
+</sc-for>
+</div>
+</section>
+
+<section style="display: flex; flex-wrap: wrap; gap: 10px">
+<nav aria-label="Carpetas" style="flex: 0 1 200px; min-width: 180px; background: #101521; border: 1px solid #243049; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 4px">
+<div style="font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: #8A94A3; padding: 4px 6px">LIBRERÍA</div>
+<sc-for list="{{ tabs }}" as="t"><button onClick="{{ t.pick }}" style="text-align: left; min-height: 36px; padding: 0 10px; border-radius: 6px; border: none; background: {{ t.bg }}; color: {{ t.fg }}; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center"><span>{{ t.label }}</span><span class="mono" style="font-size: 11px; color: #8A94A3">{{ t.n }}</span></button></sc-for>
+</nav>
+<div style="flex: 999 1 560px; min-width: 0; background: #101521; border: 1px solid #243049; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px">
+<label style="display: flex; align-items: center; gap: 8px; background: #060810; border: 1px solid #243049; border-radius: 6px; padding: 0 10px; min-height: 38px"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8A94A3" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg><input type="search" placeholder="Buscar canción, artista, BPM o comercial…" aria-label="Buscar" style="flex: 1; background: transparent; border: none; color: #E6EAF0; font-size: 13px; outline: none"></label>
+<div style="overflow-x: auto">
+<table style="width: 100%; border-collapse: collapse; font-size: 13px; min-width: 820px">
+<thead><tr style="text-align: left; color: #8A94A3; font-size: 10px; letter-spacing: 0.12em">
+<th style="padding: 6px 8px; font-weight: 700">TÍTULO</th><th style="padding: 6px 8px; font-weight: 700">ARTISTA</th><th style="padding: 6px 8px; font-weight: 700">TIPO</th><th style="padding: 6px 8px; font-weight: 700">BPM</th><th style="padding: 6px 8px; font-weight: 700">TONO</th><th style="padding: 6px 8px; font-weight: 700">ENERGÍA</th><th style="padding: 6px 8px; font-weight: 700">DURAC.</th><th style="padding: 6px 8px; font-weight: 700">SEDE</th><th style="padding: 6px 8px; font-weight: 700">ESTADO</th><th style="padding: 6px 8px; font-weight: 700; text-align: right">CARGAR</th>
+</tr></thead>
+<tbody>
+<tr data-for="rows" data-as="r" style="border-top: 1px solid #1A2028; background: {{ r.rowBg }}">
+<td style="padding: 7px 8px; font-weight: 600">{{ r.title }}</td>
+<td style="padding: 7px 8px; color: #AEB7C4">{{ r.artist }}</td>
+<td style="padding: 7px 8px"><span style="padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; background: {{ r.typeBg }}; color: {{ r.typeFg }}">{{ r.type }}</span></td>
+<td class="mono" style="padding: 7px 8px; color: #C9D1DC">{{ r.bpm }}</td>
+<td class="mono" style="padding: 7px 8px; color: #C9D1DC">{{ r.key }}</td>
+<td style="padding: 7px 8px"><div style="display: flex; gap: 2px"><sc-for list="{{ r.energy }}" as="e"><span style="width: 5px; height: 12px; border-radius: 1px; background: {{ e.c }}"></span></sc-for></div></td>
+<td class="mono" style="padding: 7px 8px; color: #C9D1DC">{{ r.dur }}</td>
+<td style="padding: 7px 8px; color: #AEB7C4">{{ r.sede }}</td>
+<td style="padding: 7px 8px; color: {{ r.stateFg }}; font-weight: 600">{{ r.state }}</td>
+<td style="padding: 7px 8px; text-align: right; white-space: nowrap"><button style="min-height: 30px; width: 34px; border-radius: 5px; border: 1px solid #FF8C00; background: transparent; color: #FF8C00; font-weight: 800; margin-right: 4px">A</button><button style="min-height: 30px; width: 34px; border-radius: 5px; border: 1px solid #00E5FF; background: transparent; color: #00E5FF; font-weight: 800">B</button></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<aside style="flex: 1 1 280px; min-width: 240px; background: #101521; border: 1px solid #243049; border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 6px">
+<div style="display: flex; justify-content: space-between; align-items: center; padding: 4px 6px"><span style="font-size: 10px; font-weight: 800; letter-spacing: 0.14em; color: #8A94A3">COLA AUTO-DJ</span><span class="mono" style="font-size: 11px; color: #8A94A3">próx. 20 min</span></div>
+<sc-for list="{{ queue }}" as="q">
+<div style="display: flex; align-items: center; gap: 8px; background: #060810; border: 1px solid #243049; border-left: 3px solid {{ q.c }}; border-radius: 6px; padding: 7px 9px">
+<span class="mono" style="font-size: 11px; color: #8A94A3; width: 38px">{{ q.t }}</span>
+<div style="flex: 1; min-width: 0"><div style="font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{ q.title }}</div><div style="font-size: 10px; color: #8A94A3; letter-spacing: 0.06em">{{ q.kind }}</div></div>
+</div>
+</sc-for>
+</aside>
+</section>
+
+</div>
+</div>
+</template>
+<div id="app"></div>
+<script src="/admin/dj.js" defer></script>
+</body>
+</html>
