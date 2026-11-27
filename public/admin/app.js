@@ -109,6 +109,7 @@ const ICON = {
   comerciales: 'M3 5h18v12H3zM8 21h8M12 17v4M10 9l5 2-5 2z',
   anunciantes: 'M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0zM4 21a8 8 0 0 1 16 0',
   musica: 'M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',
+  dj: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM18 3l-4 7',
   programacion: 'M4 5h16v16H4zM4 9h16M8 3v4M16 3v4',
   reportes: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
   registros: 'M5 3h14v18H5zM8 7h8M8 11h8M8 15h5',
@@ -116,7 +117,7 @@ const ICON = {
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${ICON[k]}"/></svg>`;
 const PAGES = [['inicio', 'Inicio'], ['emision', 'Emisión y controles'], ['sedes', 'Sedes'], ['comerciales', 'Comerciales'], ['anunciantes', 'Anunciantes'],
-  ['musica', 'Música'], ['programacion', 'Programación'], ['reportes', 'Reportes'], ['registros', 'Registros'], ['cuenta', 'Cuenta']];
+  ['musica', 'Música'], ['dj', 'Panel DJ'], ['programacion', 'Programación'], ['reportes', 'Reportes'], ['registros', 'Registros'], ['cuenta', 'Cuenta']];
 
 // ------------------------------------------------------------------ sesión
 function showLogin(message) {
@@ -591,6 +592,27 @@ function advForm(a, done) {
 }
 
 // ------------------------------------------------------------------ MÚSICA
+// Panel DJ: la consola vive en dj.html/dj.js/dj.css y se monta aquí dentro.
+RENDER.dj = async (el) => {
+  if (!document.querySelector('link[href="/admin/dj.css"]')) {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/admin/dj.css'; document.head.appendChild(l);
+  }
+  const res = await fetch('/admin/dj.html', { cache: 'no-cache' });
+  if (!res.ok) throw new Error('No se pudo cargar el panel DJ.');
+  const tpl = new DOMParser().parseFromString(await res.text(), 'text/html').getElementById('dj-tpl');
+  if (S.page !== 'dj') return;
+  document.getElementById('dj-tpl')?.remove();
+  document.body.appendChild(document.importNode(tpl, true));
+  el.innerHTML = `<p class="small muted" style="margin:0 0 10px">Vista de diseño: los botones todavía no controlan la radio. <a href="/admin/dj.html" target="_blank" rel="noopener">Abrir en pantalla completa</a></p>
+    <div id="dj-app" class="dj-root" style="border-radius:14px;overflow:hidden"></div>`;
+  if (window.DJ_RENDER) { window.DJ_RENDER(); return; }
+  await new Promise((ok, ko) => {
+    const s = document.createElement('script'); s.src = '/admin/dj.js';
+    s.onload = ok; s.onerror = () => ko(new Error('No se pudo cargar el panel DJ.'));
+    document.head.appendChild(s);
+  });
+};
+
 RENDER.musica = async (el) => {
   el.innerHTML = `<div class="card"><h2>Subir canciones</h2>
     <p class="small muted">MP3 y casi cualquier formato de audio (M4A, AAC, WAV, OGG, OPUS, FLAC…). Puede elegir varios a la vez; la subida empieza sola al elegirlos.
