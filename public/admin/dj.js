@@ -138,7 +138,9 @@ function build(node, scope, out) {
 function render() {
   const vals = panel.renderVals();
   const frag = document.createDocumentFragment();
-  document.getElementById('tpl').content.childNodes.forEach((n) => build(n, vals, frag));
-  const app = document.getElementById('app'); app.replaceChildren(frag);
+  document.getElementById('dj-tpl').content.childNodes.forEach((n) => build(n, vals, frag));
+  const app = document.getElementById('dj-app'); app.replaceChildren(frag);
 }
-render();
+// Se usa sola (/admin/dj.html) o dentro del panel (sección «Panel DJ»).
+window.DJ_RENDER = render;
+if (document.getElementById('dj-app')) render();
